@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "121145963334",
+    "project_id": "trivent-app",
+    "storage_bucket": "trivent-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:121145963334:android:e3e450bea3bee8f784eb47",
+        "android_client_info": {
+          "package_name": "com.example.trivent_flutter_test"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBkVKZtAIKcKz2OmOsAgXb4RQ4GcWvkMDU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

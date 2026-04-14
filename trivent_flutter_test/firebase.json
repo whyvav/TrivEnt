@@ -1,0 +1,1 @@
+{"flutter":{"platforms":{"android":{"default":{"projectId":"trivent-app","appId":"1:121145963334:android:e3e450bea3bee8f784eb47","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"trivent-app","configurations":{"android":"1:121145963334:android:e3e450bea3bee8f784eb47","web":"1:121145963334:web:384ccbe48c6bbe6a84eb47"}}}}}}
