@@ -21,7 +21,7 @@ class BrickErpApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Brick ERP',
+      title: 'TrivEnt',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       home: const MainShell(),
@@ -75,7 +75,7 @@ class _MainShellState extends State<MainShell> {
                 child: Column(children: [
                   Icon(Icons.factory, color: AppTheme.primary, size: 32),
                   const SizedBox(height: 4),
-                  Text('Brick ERP', style: TextStyle(
+                  Text('TrivEnt', style: TextStyle(
                     color: AppTheme.primary,
                     fontWeight: FontWeight.bold,
                     fontSize: 12,

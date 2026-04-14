@@ -28,7 +28,7 @@ class DashboardScreen extends StatelessWidget {
               children: [
                 // Greeting
                 Text(
-                  'Brick Manufacturing ERP',
+                  'Triveni Enterprises',
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.bold,
                     color: AppTheme.primary,
