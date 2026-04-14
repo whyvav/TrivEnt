@@ -1,4 +1,5 @@
-class SaleItem {
+// Mirror of SaleModel but for purchases (raw materials from suppliers)
+class PurchaseItem {
   final String itemId;
   final String itemName;
   final double qty;
@@ -7,7 +8,7 @@ class SaleItem {
   final double taxPercent;
   final double discountPercent;
 
-  SaleItem({
+  PurchaseItem({
     required this.itemId,
     required this.itemName,
     required this.qty,
@@ -33,38 +34,35 @@ class SaleItem {
     'discountPercent': discountPercent,
   };
 
-  factory SaleItem.fromMap(Map<String, dynamic> m) => SaleItem(
+  factory PurchaseItem.fromMap(Map<String, dynamic> m) => PurchaseItem(
     itemId: m['itemId'] ?? '',
     itemName: m['itemName'] ?? '',
     qty: (m['qty'] ?? 0).toDouble(),
     unit: m['unit'] ?? '',
-    priceExclTax: (m['priceExclTax'] ?? m['pricePerUnit'] ?? 0).toDouble(),
+    priceExclTax: (m['priceExclTax'] ?? 0).toDouble(),
     taxPercent: (m['taxPercent'] ?? 0).toDouble(),
     discountPercent: (m['discountPercent'] ?? 0).toDouble(),
   );
 }
 
-class SaleModel {
+class PurchaseModel {
   final String id;
-  final String invoiceNo;
+  final String billNo;
   final String partyId;
   final String partyName;
-  final String? partyFirm;
   final String? partyPhone;
-  final List<SaleItem> items;
+  final List<PurchaseItem> items;
   final String paymentType;
-  final double amountPaid;    // how much actually paid (for partial)
+  final double amountPaid;
   final DateTime date;
   final DateTime? dueDate;
   final String? notes;
-  final String? orderNo;
 
-  SaleModel({
+  PurchaseModel({
     required this.id,
-    required this.invoiceNo,
+    required this.billNo,
     required this.partyId,
     required this.partyName,
-    this.partyFirm,
     this.partyPhone,
     required this.items,
     required this.paymentType,
@@ -72,7 +70,6 @@ class SaleModel {
     DateTime? date,
     this.dueDate,
     this.notes,
-    this.orderNo,
   })  : date = date ?? DateTime.now(),
         amountPaid = amountPaid ?? 0;
 
@@ -82,10 +79,9 @@ class SaleModel {
 
   Map<String, dynamic> toMap() => {
     'id': id,
-    'invoiceNo': invoiceNo,
+    'billNo': billNo,
     'partyId': partyId,
     'partyName': partyName,
-    'partyFirm': partyFirm,
     'partyPhone': partyPhone,
     'items': items.map((i) => i.toMap()).toList(),
     'paymentType': paymentType,
@@ -94,22 +90,19 @@ class SaleModel {
     'date': date.toIso8601String(),
     'dueDate': dueDate?.toIso8601String(),
     'notes': notes,
-    'orderNo': orderNo,
   };
 
-  factory SaleModel.fromMap(Map<String, dynamic> m) => SaleModel(
+  factory PurchaseModel.fromMap(Map<String, dynamic> m) => PurchaseModel(
     id: m['id'] ?? '',
-    invoiceNo: m['invoiceNo'] ?? '',
+    billNo: m['billNo'] ?? '',
     partyId: m['partyId'] ?? '',
     partyName: m['partyName'] ?? '',
-    partyFirm: m['partyFirm'],
     partyPhone: m['partyPhone'],
-    items: (m['items'] as List? ?? []).map((i) => SaleItem.fromMap(i)).toList(),
+    items: (m['items'] as List? ?? []).map((i) => PurchaseItem.fromMap(i)).toList(),
     paymentType: m['paymentType'] ?? 'Cash',
-    amountPaid: (m['amountPaid'] ?? (m['isPaid'] == true ? m['totalAmount'] : 0) ?? 0).toDouble(),
+    amountPaid: (m['amountPaid'] ?? 0).toDouble(),
     date: m['date'] != null ? DateTime.parse(m['date']) : DateTime.now(),
     dueDate: m['dueDate'] != null ? DateTime.parse(m['dueDate']) : null,
     notes: m['notes'],
-    orderNo: m['orderNo'],
   );
 }

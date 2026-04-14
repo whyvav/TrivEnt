@@ -1,29 +1,22 @@
 import 'package:flutter/material.dart';
-import 'package:uuid/uuid.dart';
 import '../../models/item_model.dart';
 import '../../services/firestore_service.dart';
 import '../../theme.dart';
 
-class AddItemScreen extends StatefulWidget {
-  final String defaultCategory;
-  const AddItemScreen({super.key, this.defaultCategory = 'product'});
-  @override State<AddItemScreen> createState() => _AddItemScreenState();
+class EditItemScreen extends StatefulWidget {
+  final ItemModel item;
+  const EditItemScreen({super.key, required this.item});
+  @override State<EditItemScreen> createState() => _EditItemScreenState();
 }
 
-class _AddItemScreenState extends State<AddItemScreen> {
+class _EditItemScreenState extends State<EditItemScreen> {
   final _formKey = GlobalKey<FormState>();
   final svc = FirestoreService();
   late String _category;
-  String _unit = 'pieces';
-
-  final _name = TextEditingController();
-  final _salePrice = TextEditingController();
-  final _purchasePrice = TextEditingController();
-  final _openingStock = TextEditingController();
-  final _minStock = TextEditingController();
-  final _hsn = TextEditingController();
-  final _description = TextEditingController();
-  double _taxPercent = 0;
+  late String _unit;
+  late double _taxPercent;
+  late TextEditingController _name, _salePrice, _purchasePrice,
+      _openingStock, _minStock, _hsn, _description;
   bool _saving = false;
 
   final _units = ['pieces', 'kg', 'tons', 'bags', 'liters', 'cubic meters', 'sq ft'];
@@ -32,19 +25,28 @@ class _AddItemScreenState extends State<AddItemScreen> {
   @override
   void initState() {
     super.initState();
-    _category = widget.defaultCategory;
+    final i = widget.item;
+    _category = i.category;
+    _unit = _units.contains(i.unit) ? i.unit : 'pieces';
+    _taxPercent = _taxOptions.contains(i.taxPercent) ? i.taxPercent : 0;
+    _name = TextEditingController(text: i.name);
+    _salePrice = TextEditingController(text: i.salePrice.toString());
+    _purchasePrice = TextEditingController(text: i.purchasePrice.toString());
+    _openingStock = TextEditingController(text: i.stockQty.toString());
+    _minStock = TextEditingController(text: i.minStockAlert.toString());
+    _hsn = TextEditingController(text: i.hsn ?? '');
+    _description = TextEditingController(text: i.description ?? '');
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Add Item')),
+      appBar: AppBar(title: Text('Edit: ${widget.item.name}')),
       body: Form(
         key: _formKey,
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(16),
           child: Column(children: [
-            // Category toggle
             Card(child: Padding(
               padding: const EdgeInsets.all(12),
               child: Row(children: [
@@ -60,12 +62,10 @@ class _AddItemScreenState extends State<AddItemScreen> {
               ]),
             )),
             const SizedBox(height: 16),
-
             TextFormField(controller: _name,
                 decoration: const InputDecoration(labelText: 'Item Name *'),
                 validator: (v) => v!.isEmpty ? 'Required' : null),
             const SizedBox(height: 12),
-
             Row(children: [
               Expanded(child: DropdownButtonFormField<String>(
                 value: _unit,
@@ -82,7 +82,6 @@ class _AddItemScreenState extends State<AddItemScreen> {
               )),
             ]),
             const SizedBox(height: 12),
-
             Row(children: [
               Expanded(child: TextFormField(controller: _salePrice,
                   decoration: const InputDecoration(labelText: 'Sale Price (₹)', prefixText: '₹'),
@@ -93,10 +92,9 @@ class _AddItemScreenState extends State<AddItemScreen> {
                   keyboardType: TextInputType.number)),
             ]),
             const SizedBox(height: 12),
-
             Row(children: [
               Expanded(child: TextFormField(controller: _openingStock,
-                  decoration: const InputDecoration(labelText: 'Opening Stock'),
+                  decoration: const InputDecoration(labelText: 'Stock Qty'),
                   keyboardType: TextInputType.number)),
               const SizedBox(width: 12),
               Expanded(child: TextFormField(controller: _minStock,
@@ -104,23 +102,21 @@ class _AddItemScreenState extends State<AddItemScreen> {
                   keyboardType: TextInputType.number)),
             ]),
             const SizedBox(height: 12),
-
             Row(children: [
               Expanded(child: TextFormField(controller: _hsn,
-                  decoration: const InputDecoration(labelText: 'HSN Code (optional)'))),
+                  decoration: const InputDecoration(labelText: 'HSN Code'))),
               const SizedBox(width: 12),
               Expanded(child: TextFormField(controller: _description,
-                  decoration: const InputDecoration(labelText: 'Description (optional)'))),
+                  decoration: const InputDecoration(labelText: 'Description'))),
             ]),
             const SizedBox(height: 24),
-
             SizedBox(width: double.infinity,
               child: ElevatedButton(
                 onPressed: _saving ? null : _save,
                 child: _saving
                     ? const SizedBox(height: 20, width: 20,
                         child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                    : const Text('Save Item'),
+                    : const Text('Update Item'),
               ),
             ),
           ]),
@@ -133,8 +129,8 @@ class _AddItemScreenState extends State<AddItemScreen> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _saving = true);
     try {
-      final item = ItemModel(
-        id: const Uuid().v4(),
+      final updated = ItemModel(
+        id: widget.item.id,
         name: _name.text.trim(),
         category: _category,
         unit: _unit,
@@ -145,11 +141,12 @@ class _AddItemScreenState extends State<AddItemScreen> {
         minStockAlert: double.tryParse(_minStock.text) ?? 0,
         hsn: _hsn.text.isEmpty ? null : _hsn.text.trim(),
         description: _description.text.isEmpty ? null : _description.text.trim(),
+        createdAt: widget.item.createdAt,
       );
-      await svc.saveItem(item);
+      await svc.updateItem(updated);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Item saved!'), backgroundColor: Colors.green));
+            const SnackBar(content: Text('Updated!'), backgroundColor: Colors.green));
         Navigator.pop(context);
       }
     } catch (e) {

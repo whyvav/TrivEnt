@@ -1,4 +1,4 @@
-name: brick_erp
+name: trivent_flutter_test
 description: Brick Manufacturing ERP
 
 publish_to: 'none'
@@ -19,12 +19,17 @@ dependencies:
   # UI
   cupertino_icons: ^1.0.6
   google_fonts: ^6.1.0
-  fl_chart: ^0.67.0          # Charts for dashboard
+  fl_chart: ^0.67.0
+
+  # PDF generation
+  pdf: ^3.10.8
+  printing: ^5.12.0
 
   # Utilities
-  intl: ^0.19.0              # Date/number formatting
-  uuid: ^4.3.3               # Generate unique IDs
-  provider: ^6.1.2           # State management
+  intl: ^0.19.0
+  uuid: ^4.3.3
+  provider: ^6.1.2
+  path_provider: ^2.1.2
 
 dev_dependencies:
   flutter_test:

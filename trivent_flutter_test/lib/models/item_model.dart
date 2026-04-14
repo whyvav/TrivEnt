@@ -6,6 +6,7 @@ class ItemModel {
   final String unit;          // 'pieces', 'kg', 'tons', etc.
   final double salePrice;
   final double purchasePrice;
+  final double taxPercent;
   final double stockQty;
   final double minStockAlert;
   final String? hsn;
@@ -19,6 +20,7 @@ class ItemModel {
     required this.unit,
     this.salePrice = 0,
     this.purchasePrice = 0,
+    this.taxPercent = 0,
     this.stockQty = 0,
     this.minStockAlert = 0,
     this.hsn,
@@ -35,6 +37,7 @@ class ItemModel {
       'unit': unit,
       'salePrice': salePrice,
       'purchasePrice': purchasePrice,
+      'taxPercent': taxPercent,
       'stockQty': stockQty,
       'minStockAlert': minStockAlert,
       'hsn': hsn,
@@ -52,6 +55,7 @@ class ItemModel {
       unit: map['unit'] ?? 'pieces',
       salePrice: (map['salePrice'] ?? 0).toDouble(),
       purchasePrice: (map['purchasePrice'] ?? 0).toDouble(),
+      taxPercent: (map['taxPercent'] ?? 0).toDouble(),
       stockQty: (map['stockQty'] ?? 0).toDouble(),
       minStockAlert: (map['minStockAlert'] ?? 0).toDouble(),
       hsn: map['hsn'],
@@ -71,6 +75,7 @@ class ItemModel {
       unit: unit,
       salePrice: salePrice,
       purchasePrice: purchasePrice,
+      taxPercent: taxPercent ?? this.taxPercent,
       stockQty: stockQty ?? this.stockQty,
       minStockAlert: minStockAlert,
       hsn: hsn,
