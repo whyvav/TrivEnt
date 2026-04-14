@@ -89,24 +89,40 @@ class _MainShellState extends State<MainShell> {
       return Scaffold(
         body: Row(children: [
           NavigationRail(
-            selectedIndex: _selectedIndex,
-            onDestinationSelected: (i) => setState(() => _selectedIndex = i),
-            labelType: NavigationRailLabelType.all,
-            leading: const Padding(
-              padding: EdgeInsets.symmetric(vertical: 16),
-              child: Column(children: [
-                Icon(Icons.factory, color: AppTheme.primary, size: 32),
-                SizedBox(height: 4),
-                Text('TrivEnt', style: TextStyle(
-                    color: AppTheme.primary, fontWeight: FontWeight.bold, fontSize: 12)),
-              ]),
+              selectedIndex: _selectedIndex,
+              onDestinationSelected: (i) => setState(() => _selectedIndex = i),
+              labelType: NavigationRailLabelType.all,
+
+              leading: const Padding(
+                padding: EdgeInsets.symmetric(vertical: 16),
+                child: Column(children: [
+                  Icon(Icons.factory, color: AppTheme.primary, size: 32),
+                  SizedBox(height: 4),
+                  Text('TrivEnt', style: TextStyle(
+                      color: AppTheme.primary, fontWeight: FontWeight.bold, fontSize: 12)),
+                ]),
+              ),
+
+              destinations: _navItems.map((n) => NavigationRailDestination(
+                icon: Icon(n.icon),
+                selectedIcon: Icon(n.selectedIcon),
+                label: Text(n.label, style: const TextStyle(fontSize: 11)),
+              )).toList(),
+
+              // 🔥 ADD THIS BLOCK
+              trailing: Column(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.logout),
+                    onPressed: () async {
+                      await FirebaseAuth.instance.signOut();
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                ],
+              ),
             ),
-            destinations: _navItems.map((n) => NavigationRailDestination(
-              icon: Icon(n.icon),
-              selectedIcon: Icon(n.selectedIcon),
-              label: Text(n.label, style: const TextStyle(fontSize: 11)),
-            )).toList(),
-          ),
           const VerticalDivider(thickness: 1, width: 1),
           Expanded(child: _screens[_selectedIndex]),
         ]),
