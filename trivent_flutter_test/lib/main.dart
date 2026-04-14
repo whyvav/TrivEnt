@@ -11,6 +11,8 @@ import 'screens/parties/parties_screen.dart';
 import 'screens/manufacturing/bom_screen.dart';
 import 'screens/manufacturing/manufacture_screen.dart';
 import 'screens/reports/reports_screen.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'screens/auth/login_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -20,13 +22,31 @@ void main() async {
 
 class BrickErpApp extends StatelessWidget {
   const BrickErpApp({super.key});
+
   @override
   Widget build(BuildContext context) => MaterialApp(
-    title: 'TrivEnt',
-    debugShowCheckedModeBanner: false,
-    theme: AppTheme.lightTheme,
-    home: const MainShell(),
-  );
+        title: 'TrivEnt',
+        debugShowCheckedModeBanner: false,
+        theme: AppTheme.lightTheme,
+
+        // 🔥 THIS IS THE CHANGE
+        home: StreamBuilder<User?>(
+          stream: FirebaseAuth.instance.authStateChanges(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Scaffold(
+                body: Center(child: CircularProgressIndicator()),
+              );
+            }
+
+            if (snapshot.hasData) {
+              return const MainShell();
+            } else {
+              return const LoginScreen();
+            }
+          },
+        ),
+      );
 }
 
 class MainShell extends StatefulWidget {
@@ -122,6 +142,14 @@ class _MainShellState extends State<MainShell> {
           icon: const Icon(Icons.menu),
           onPressed: () => Scaffold.of(ctx).openDrawer(),
         )),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: () async {
+              await FirebaseAuth.instance.signOut();
+            },
+          ),
+        ],
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex < 5 ? _selectedIndex : 0,
