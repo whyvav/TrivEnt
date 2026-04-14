@@ -131,7 +131,7 @@ class _AddSaleScreenState extends State<AddSaleScreen> {
                   child: Column(children: [
                     Row(children: [
                       Expanded(child: DropdownButtonFormField<String>(
-                        value: _paymentType,
+                        initialValue: _paymentType,
                         decoration: const InputDecoration(labelText: 'Payment Type'),
                         items: ['Cash', 'UPI', 'Bank Transfer', 'Cheque', 'Credit']
                             .map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
@@ -207,7 +207,7 @@ class _AddSaleScreenState extends State<AddSaleScreen> {
               builder: (ctx, snap) {
                 final items = snap.data ?? [];
                 return DropdownButtonFormField<ItemModel>(
-                  value: row.item,
+                  initialValue: row.item,
                   hint: const Text('Select product'),
                   decoration: const InputDecoration(labelText: 'Product'),
                   items: items.map((p) => DropdownMenuItem(

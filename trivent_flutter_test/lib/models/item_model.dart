@@ -75,7 +75,7 @@ class ItemModel {
       unit: unit,
       salePrice: salePrice,
       purchasePrice: purchasePrice,
-      taxPercent: taxPercent ?? this.taxPercent,
+      taxPercent: taxPercent ?? taxPercent,
       stockQty: stockQty ?? this.stockQty,
       minStockAlert: minStockAlert,
       hsn: hsn,

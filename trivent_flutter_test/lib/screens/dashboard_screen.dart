@@ -124,9 +124,9 @@ class DashboardScreen extends StatelessWidget {
                       child: Padding(
                         padding: const EdgeInsets.all(16),
                         child: Column(children: [
-                          Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                          const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                             _LegendDot(AppTheme.receivable, 'Sales'),
-                            const SizedBox(width: 16),
+                            SizedBox(width: 16),
                             _LegendDot(AppTheme.payable, 'Expenses'),
                           ]),
                           const SizedBox(height: 12),
@@ -177,10 +177,10 @@ class DashboardScreen extends StatelessWidget {
                         .where((i) => i.minStockAlert > 0 && i.stockQty <= i.minStockAlert)
                         .toList();
                     if (low.isEmpty) {
-                      return Card(
+                      return const Card(
                         child: ListTile(
                           leading: Icon(Icons.check_circle, color: AppTheme.receivable),
-                          title: const Text('All stocks adequate'),
+                          title: Text('All stocks adequate'),
                         ),
                       );
                     }
@@ -189,11 +189,11 @@ class DashboardScreen extends StatelessWidget {
                           .map((item) => Card(
                                 color: Colors.red.shade50,
                                 child: ListTile(
-                                  leading: Icon(Icons.warning_amber, color: AppTheme.payable),
+                                  leading: const Icon(Icons.warning_amber, color: AppTheme.payable),
                                   title: Text(item.name),
                                   subtitle: Text('${item.stockQty} ${item.unit} remaining'),
                                   trailing: Text('Min: ${item.minStockAlert}',
-                                      style: TextStyle(color: AppTheme.payable)),
+                                      style: const TextStyle(color: AppTheme.payable)),
                                 ),
                               ))
                           .toList(),
@@ -265,7 +265,7 @@ class _QuickActionButton extends StatelessWidget {
             Icon(icon, color: AppTheme.primary, size: 20),
             const SizedBox(width: 8),
             Text(label,
-                style: TextStyle(color: AppTheme.primary, fontWeight: FontWeight.w600)),
+                style: const TextStyle(color: AppTheme.primary, fontWeight: FontWeight.w600)),
           ]),
         ),
       );

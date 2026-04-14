@@ -63,7 +63,7 @@ class _AddPartyScreenState extends State<AddPartyScreen> {
                   decoration: const InputDecoration(labelText: 'GSTIN'))),
               const SizedBox(width: 12),
               Expanded(child: DropdownButtonFormField<String>(
-                value: _gstType,
+                initialValue: _gstType,
                 decoration: const InputDecoration(labelText: 'GST Type'),
                 items: const [
                   DropdownMenuItem(value: 'registered', child: Text('Registered')),

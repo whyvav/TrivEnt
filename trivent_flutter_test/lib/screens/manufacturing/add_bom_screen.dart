@@ -3,7 +3,6 @@ import 'package:uuid/uuid.dart';
 import '../../models/bom_model.dart';
 import '../../models/item_model.dart';
 import '../../services/firestore_service.dart';
-import '../../theme.dart';
 
 class AddBomScreen extends StatefulWidget {
   const AddBomScreen({super.key});

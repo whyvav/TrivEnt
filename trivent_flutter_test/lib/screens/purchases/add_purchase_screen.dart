@@ -98,7 +98,7 @@ class _AddPurchaseScreenState extends State<AddPurchaseScreen> {
                           builder: (ctx, snap) {
                             final items = snap.data ?? [];
                             return DropdownButtonFormField<ItemModel>(
-                              value: row.item,
+                              initialValue: row.item,
                               hint: const Text('Select raw material'),
                               decoration: const InputDecoration(labelText: 'Material'),
                               items: items.map((m) => DropdownMenuItem(
@@ -152,7 +152,7 @@ class _AddPurchaseScreenState extends State<AddPurchaseScreen> {
                 padding: const EdgeInsets.all(12),
                 child: Row(children: [
                   Expanded(child: DropdownButtonFormField<String>(
-                    value: _paymentType,
+                    initialValue: _paymentType,
                     decoration: const InputDecoration(labelText: 'Payment Type'),
                     items: ['Cash', 'UPI', 'Bank Transfer', 'Cheque', 'Credit']
                         .map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),

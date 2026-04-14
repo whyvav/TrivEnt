@@ -97,12 +97,12 @@ class _ItemList extends StatelessWidget {
             Container(
               color: AppTheme.primary.withOpacity(0.08),
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              child: Row(children: [
-                const Expanded(flex: 3, child: Text('Item', style: TextStyle(fontWeight: FontWeight.bold))),
-                const Expanded(flex: 2, child: Text('Stock', style: TextStyle(fontWeight: FontWeight.bold), textAlign: TextAlign.right)),
-                const Expanded(flex: 2, child: Text('Unit Price', style: TextStyle(fontWeight: FontWeight.bold), textAlign: TextAlign.right)),
-                const Expanded(flex: 2, child: Text('Value', style: TextStyle(fontWeight: FontWeight.bold), textAlign: TextAlign.right)),
-                const SizedBox(width: 48),
+              child: const Row(children: [
+                Expanded(flex: 3, child: Text('Item', style: TextStyle(fontWeight: FontWeight.bold))),
+                Expanded(flex: 2, child: Text('Stock', style: TextStyle(fontWeight: FontWeight.bold), textAlign: TextAlign.right)),
+                Expanded(flex: 2, child: Text('Unit Price', style: TextStyle(fontWeight: FontWeight.bold), textAlign: TextAlign.right)),
+                Expanded(flex: 2, child: Text('Value', style: TextStyle(fontWeight: FontWeight.bold), textAlign: TextAlign.right)),
+                SizedBox(width: 48),
               ]),
             ),
             Expanded(

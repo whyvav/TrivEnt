@@ -68,14 +68,14 @@ class _EditItemScreenState extends State<EditItemScreen> {
             const SizedBox(height: 12),
             Row(children: [
               Expanded(child: DropdownButtonFormField<String>(
-                value: _unit,
+                initialValue: _unit,
                 decoration: const InputDecoration(labelText: 'Unit'),
                 items: _units.map((u) => DropdownMenuItem(value: u, child: Text(u))).toList(),
                 onChanged: (v) => setState(() => _unit = v!),
               )),
               const SizedBox(width: 12),
               Expanded(child: DropdownButtonFormField<double>(
-                value: _taxPercent,
+                initialValue: _taxPercent,
                 decoration: const InputDecoration(labelText: 'GST %'),
                 items: _taxOptions.map((t) => DropdownMenuItem(value: t, child: Text('$t%'))).toList(),
                 onChanged: (v) => setState(() => _taxPercent = v!),

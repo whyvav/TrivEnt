@@ -29,7 +29,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
           padding: const EdgeInsets.all(16),
           child: Column(children: [
             DropdownButtonFormField<String>(
-              value: _category,
+              initialValue: _category,
               decoration: const InputDecoration(labelText: 'Category'),
               items: ExpenseModel.categories
                   .map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
@@ -47,7 +47,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                   validator: (v) => v!.isEmpty ? 'Required' : null)),
               const SizedBox(width: 12),
               Expanded(child: DropdownButtonFormField<String>(
-                value: _paymentType,
+                initialValue: _paymentType,
                 decoration: const InputDecoration(labelText: 'Payment Type'),
                 items: ['Cash', 'UPI', 'Bank Transfer', 'Cheque']
                     .map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
