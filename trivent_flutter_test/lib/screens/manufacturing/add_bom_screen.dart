@@ -34,7 +34,7 @@ class _AddBomScreenState extends State<AddBomScreen> {
               builder: (ctx, snap) {
                 final products = snap.data ?? [];
                 return DropdownButtonFormField<ItemModel>(
-                  value: _selectedProduct,
+                  initialValue: _selectedProduct,
                   hint: const Text('Select product'),
                   decoration: const InputDecoration(labelText: 'Product to manufacture'),
                   items: products.map((p) => DropdownMenuItem(value: p, child: Text(p.name))).toList(),
@@ -65,7 +65,7 @@ class _AddBomScreenState extends State<AddBomScreen> {
                       builder: (ctx, snap) {
                         final mats = snap.data ?? [];
                         return DropdownButtonFormField<ItemModel>(
-                          value: row.material,
+                          initialValue: row.material,
                           hint: const Text('Select material'),
                           decoration: const InputDecoration(labelText: 'Raw Material'),
                           items: mats.map((m) => DropdownMenuItem(value: m, child: Text(m.name))).toList(),
@@ -124,7 +124,7 @@ class _AddBomScreenState extends State<AddBomScreen> {
                   padding: const EdgeInsets.all(12),
                   child: Row(children: [
                     Expanded(child: DropdownButtonFormField<String>(
-                      value: row.type,
+                      initialValue: row.type,
                       decoration: const InputDecoration(labelText: 'Type'),
                       items: ['Labor', 'Electricity', 'Fuel', 'Other']
                           .map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),

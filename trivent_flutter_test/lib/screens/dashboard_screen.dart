@@ -91,13 +91,13 @@ class DashboardScreen extends StatelessWidget {
                     final lowStock = snap.data!.where((i) =>
                         i.minStockAlert > 0 && i.stockQty <= i.minStockAlert).toList();
                     if (lowStock.isEmpty) {
-                      return Card(
+                      return const Card(
                         child: Padding(
-                          padding: const EdgeInsets.all(16),
+                          padding: EdgeInsets.all(16),
                           child: Row(children: [
                             Icon(Icons.check_circle, color: AppTheme.receivable),
-                            const SizedBox(width: 8),
-                            const Text('All stocks are adequate'),
+                            SizedBox(width: 8),
+                            Text('All stocks are adequate'),
                           ]),
                         ),
                       );
@@ -106,11 +106,11 @@ class DashboardScreen extends StatelessWidget {
                       children: lowStock.map((item) => Card(
                         color: Colors.red.shade50,
                         child: ListTile(
-                          leading: Icon(Icons.warning_amber, color: AppTheme.payable),
+                          leading: const Icon(Icons.warning_amber, color: AppTheme.payable),
                           title: Text(item.name),
                           subtitle: Text('Stock: ${item.stockQty} ${item.unit}'),
                           trailing: Text('Min: ${item.minStockAlert}',
-                              style: TextStyle(color: AppTheme.payable)),
+                              style: const TextStyle(color: AppTheme.payable)),
                         ),
                       )).toList(),
                     );
@@ -169,7 +169,7 @@ class _QuickActionButton extends StatelessWidget {
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           Icon(icon, color: AppTheme.primary, size: 20),
           const SizedBox(width: 8),
-          Text(label, style: TextStyle(color: AppTheme.primary, fontWeight: FontWeight.w600)),
+          Text(label, style: const TextStyle(color: AppTheme.primary, fontWeight: FontWeight.w600)),
         ]),
       ),
     );

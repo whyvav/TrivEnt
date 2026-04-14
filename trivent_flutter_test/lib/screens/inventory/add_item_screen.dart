@@ -67,7 +67,7 @@ class _AddItemScreenState extends State<AddItemScreen> {
             const SizedBox(height: 12),
 
             DropdownButtonFormField<String>(
-              value: _unit,
+              initialValue: _unit,
               decoration: const InputDecoration(labelText: 'Unit'),
               items: _units.map((u) => DropdownMenuItem(value: u, child: Text(u))).toList(),
               onChanged: (v) => setState(() => _unit = v!),

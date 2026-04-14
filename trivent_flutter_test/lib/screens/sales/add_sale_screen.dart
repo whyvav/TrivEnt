@@ -19,7 +19,7 @@ class _AddSaleScreenState extends State<AddSaleScreen> {
   bool _isPaid = false;
   final List<_SaleItemRow> _rows = [];
   bool _saving = false;
-  int _invoiceCounter = 1;
+  final int _invoiceCounter = 1;
 
   String get _invoiceNo =>
       'INV-${DateFormat('yyyyMM').format(DateTime.now())}-${_invoiceCounter.toString().padLeft(3, '0')}';
@@ -78,7 +78,7 @@ class _AddSaleScreenState extends State<AddSaleScreen> {
                             builder: (ctx, snap) {
                               final items = snap.data ?? [];
                               return DropdownButtonFormField<ItemModel>(
-                                value: row.item,
+                                initialValue: row.item,
                                 hint: const Text('Select product'),
                                 decoration: const InputDecoration(labelText: 'Product'),
                                 items: items.map((p) => DropdownMenuItem(
@@ -128,7 +128,7 @@ class _AddSaleScreenState extends State<AddSaleScreen> {
                   // Payment
                   Row(children: [
                     Expanded(child: DropdownButtonFormField<String>(
-                      value: _paymentType,
+                      initialValue: _paymentType,
                       decoration: const InputDecoration(labelText: 'Payment Type'),
                       items: ['Cash', 'UPI', 'Bank Transfer', 'Credit']
                           .map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),

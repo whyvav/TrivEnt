@@ -70,11 +70,11 @@ class _MainShellState extends State<MainShell> {
               selectedIndex: _selectedIndex,
               onDestinationSelected: (i) => setState(() => _selectedIndex = i),
               labelType: NavigationRailLabelType.all,
-              leading: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 16),
+              leading: const Padding(
+                padding: EdgeInsets.symmetric(vertical: 16),
                 child: Column(children: [
                   Icon(Icons.factory, color: AppTheme.primary, size: 32),
-                  const SizedBox(height: 4),
+                  SizedBox(height: 4),
                   Text('TrivEnt', style: TextStyle(
                     color: AppTheme.primary,
                     fontWeight: FontWeight.bold,

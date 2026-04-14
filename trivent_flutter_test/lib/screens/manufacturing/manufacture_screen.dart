@@ -26,12 +26,12 @@ class _ManufactureScreenState extends State<ManufactureScreen> {
           children: [
             Card(
               color: AppTheme.primary.withOpacity(0.05),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
+              child: const Padding(
+                padding: EdgeInsets.all(16),
                 child: Row(children: [
                   Icon(Icons.info_outline, color: AppTheme.primary),
-                  const SizedBox(width: 12),
-                  const Expanded(child: Text(
+                  SizedBox(width: 12),
+                  Expanded(child: Text(
                     'Select a product and quantity. The system will automatically '
                     'deduct raw materials using the BoM and add finished goods to inventory.',
                   )),
@@ -48,7 +48,7 @@ class _ManufactureScreenState extends State<ManufactureScreen> {
               builder: (ctx, snap) {
                 final products = snap.data ?? [];
                 return DropdownButtonFormField<ItemModel>(
-                  value: _selectedProduct,
+                  initialValue: _selectedProduct,
                   hint: const Text('Select product'),
                   decoration: const InputDecoration(labelText: 'Product'),
                   items: products.map((p) => DropdownMenuItem(

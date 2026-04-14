@@ -47,7 +47,7 @@ class BomScreen extends StatelessWidget {
                 child: ExpansionTile(
                   leading: CircleAvatar(
                     backgroundColor: AppTheme.primary.withOpacity(0.1),
-                    child: Icon(Icons.view_in_ar, color: AppTheme.primary),
+                    child: const Icon(Icons.view_in_ar, color: AppTheme.primary),
                   ),
                   title: Text(bom.productName, style: const TextStyle(fontWeight: FontWeight.bold)),
                   subtitle: Text('Cost/unit: ₹${bom.totalCostPerUnit.toStringAsFixed(2)}'),
