@@ -9,29 +9,83 @@ import '../../theme.dart';
 
 class AddSaleScreen extends StatefulWidget {
   final SaleModel? existing;
-  const AddSaleScreen({super.key, this.existing});
-  @override State<AddSaleScreen> createState() => _AddSaleScreenState();
+  final PartyModel? prefilledParty;
+  const AddSaleScreen({super.key, this.existing, this.prefilledParty});
+
+  @override
+  State<AddSaleScreen> createState() => _AddSaleScreenState();
 }
 
 class _AddSaleScreenState extends State<AddSaleScreen> {
   final svc = FirestoreService();
+
   PartyModel? _selectedParty;
+
   final _partyNameCtrl = TextEditingController();
   final _partyPhoneCtrl = TextEditingController();
   final _partyFirmCtrl = TextEditingController();
-  String _paymentType = 'Cash';
-  final _amountPaidCtrl = TextEditingController();
   final _notesCtrl = TextEditingController();
-  final _orderNoCtrl = TextEditingController();
+  final _amountPaidCtrl = TextEditingController();
+  final _paymentRefCtrl = TextEditingController();
+
+  String _paymentType = 'Cash';
+  DateTime _selectedDate = DateTime.now();
   final List<_SaleRow> _rows = [];
   bool _saving = false;
 
+  bool get _isEditing => widget.existing != null;
   double get _total => _rows.fold(0, (s, r) => s + r.lineTotal);
 
   @override
   void initState() {
     super.initState();
-    _rows.add(_SaleRow());
+
+    if (_isEditing) {
+      final s = widget.existing!;
+      _partyNameCtrl.text = s.partyName;
+      _partyPhoneCtrl.text = s.partyPhone ?? '';
+      _partyFirmCtrl.text = s.partyFirm ?? '';
+      _notesCtrl.text = s.notes ?? '';
+      _paymentType = s.paymentType;
+      _paymentRefCtrl.text = s.paymentRef ?? '';
+      _amountPaidCtrl.text = s.amountPaid.toStringAsFixed(2);
+      _selectedDate = s.date;
+      for (final item in s.items) {
+        final row = _SaleRow(
+          preloadedItemId: item.itemId,
+          preloadedItemName: item.itemName,
+        );
+        row.qtyCtrl.text = item.qty.toStringAsFixed(2);
+        row.unitCtrl.text = item.unit;
+        row.priceCtrl.text = item.priceExclTax.toStringAsFixed(2);
+        row.discountCtrl.text = item.discountPercent.toStringAsFixed(0);
+        row.taxCtrl.text = item.taxPercent.toStringAsFixed(0);
+        _rows.add(row);
+      }
+      if (_rows.isEmpty) _rows.add(_SaleRow());
+    } else {
+      _rows.add(_SaleRow());
+      if (widget.prefilledParty != null) {
+        _partyNameCtrl.text = widget.prefilledParty!.name;
+        _partyPhoneCtrl.text = widget.prefilledParty!.phone ?? '';
+        _partyFirmCtrl.text = widget.prefilledParty!.firm ?? '';
+        _selectedParty = widget.prefilledParty;
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _partyNameCtrl.dispose();
+    _partyPhoneCtrl.dispose();
+    _partyFirmCtrl.dispose();
+    _notesCtrl.dispose();
+    _amountPaidCtrl.dispose();
+    _paymentRefCtrl.dispose();
+    for (final row in _rows) {
+      row.dispose();
+    }
+    super.dispose();
   }
 
   @override
@@ -39,280 +93,435 @@ class _AddSaleScreenState extends State<AddSaleScreen> {
     final cf = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
 
     return Scaffold(
-      appBar: AppBar(title: const Text('New Sale Invoice')),
+      appBar: AppBar(
+        title: Text(_isEditing ? 'Edit Sale Invoice' : 'New Sale Invoice'),
+      ),
       body: Column(
         children: [
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(16),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
 
-                // ── Party Section ──────────────────────────────
-                Text('Party Details', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold, color: Colors.grey)),
-                const SizedBox(height: 8),
-                Card(child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(children: [
-                    // Party autocomplete
-                    StreamBuilder<List<PartyModel>>(
-                      stream: svc.streamParties(),
-                      builder: (ctx, snap) {
-                        final parties = snap.data ?? [];
-                        return Autocomplete<PartyModel>(
-                          displayStringForOption: (p) => p.displayName,
-                          optionsBuilder: (tv) {
-                            if (tv.text.isEmpty) return parties;
-                            return parties.where((p) =>
-                                p.name.toLowerCase().contains(tv.text.toLowerCase()) ||
-                                (p.firm?.toLowerCase().contains(tv.text.toLowerCase()) ?? false));
-                          },
-                          onSelected: (p) {
-                            setState(() {
-                              _selectedParty = p;
-                              _partyNameCtrl.text = p.name;
-                              _partyPhoneCtrl.text = p.phone ?? '';
-                              _partyFirmCtrl.text = p.firm ?? '';
-                            });
-                          },
-                          fieldViewBuilder: (ctx, ctrl, focusNode, onSubmit) {
-                            // Sync controller
-                            if (_partyNameCtrl.text.isNotEmpty && ctrl.text.isEmpty) {
-                              ctrl.text = _partyNameCtrl.text;
-                            }
-                            return TextFormField(
-                              controller: ctrl,
-                              focusNode: focusNode,
-                              decoration: const InputDecoration(labelText: 'Party Name *',
-                                  hintText: 'Type or select existing party'),
-                              onChanged: (v) => _partyNameCtrl.text = v,
-                            );
-                          },
-                        );
-                      },
+                  // ── Party Section ──────────────────────────────
+                  Text('Party Details',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.bold, color: Colors.grey)),
+                  const SizedBox(height: 8),
+
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        children: [
+
+                          StreamBuilder<List<PartyModel>>(
+                            stream: svc.streamParties(),
+                            builder: (ctx, snap) {
+                              final parties = snap.data ?? [];
+                              return Autocomplete<PartyModel>(
+                                displayStringForOption: (p) => p.displayName,
+                                optionsBuilder: (tv) {
+                                  if (tv.text.isEmpty) return parties;
+                                  return parties.where((p) =>
+                                      p.name.toLowerCase().contains(tv.text.toLowerCase()) ||
+                                      (p.firm?.toLowerCase().contains(tv.text.toLowerCase()) ?? false));
+                                },
+                                onSelected: (p) {
+                                  setState(() {
+                                    _selectedParty = p;
+                                    _partyNameCtrl.text = p.name;
+                                    _partyPhoneCtrl.text = p.phone ?? '';
+                                    _partyFirmCtrl.text = p.firm ?? '';
+                                  });
+                                },
+                                fieldViewBuilder: (ctx, ctrl, focusNode, onSubmit) {
+                                  if (_partyNameCtrl.text.isNotEmpty && ctrl.text.isEmpty) {
+                                    ctrl.text = _partyNameCtrl.text;
+                                  }
+                                  return TextFormField(
+                                    controller: ctrl,
+                                    focusNode: focusNode,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Party Name *',
+                                      hintText: 'Type or select existing party',
+                                    ),
+                                    onChanged: (v) {
+                                      _partyNameCtrl.text = v;
+                                      // Deselect party if user edits the name manually
+                                      if (_selectedParty != null &&
+                                          _selectedParty!.name != v) {
+                                        _selectedParty = null;
+                                      }
+                                    },
+                                  );
+                                },
+                              );
+                            },
+                          ),
+
+                          const SizedBox(height: 10),
+
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextFormField(
+                                  controller: _partyPhoneCtrl,
+                                  decoration: const InputDecoration(labelText: 'Phone'),
+                                  keyboardType: TextInputType.phone,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: TextFormField(
+                                  controller: _partyFirmCtrl,
+                                  decoration: const InputDecoration(labelText: 'Firm / Company'),
+                                ),
+                              ),
+                            ],
+                          ),
+
+                          const SizedBox(height: 10),
+
+                          TextFormField(
+                            controller: _notesCtrl,
+                            decoration: const InputDecoration(
+                              labelText: 'Notes / Description',
+                            ),
+                          ),
+
+                          const SizedBox(height: 10),
+
+                          InkWell(
+                            onTap: () async {
+                              final d = await showDatePicker(
+                                context: context,
+                                initialDate: _selectedDate,
+                                firstDate: DateTime(2020),
+                                lastDate: DateTime.now().add(const Duration(days: 365)),
+                              );
+                              if (d != null) setState(() => _selectedDate = d);
+                            },
+                            child: InputDecorator(
+                              decoration: const InputDecoration(labelText: 'Invoice Date'),
+                              child: Text(DateFormat('dd MMM yyyy').format(_selectedDate)),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                    const SizedBox(height: 10),
-                    Row(children: [
-                      Expanded(child: TextFormField(controller: _partyPhoneCtrl,
-                          decoration: const InputDecoration(labelText: 'Phone'),
-                          keyboardType: TextInputType.phone)),
-                      const SizedBox(width: 12),
-                      Expanded(child: TextFormField(controller: _partyFirmCtrl,
-                          decoration: const InputDecoration(labelText: 'Firm / Company'))),
-                    ]),
-                    const SizedBox(height: 10),
-                    Row(children: [
-                      Expanded(child: TextFormField(controller: _orderNoCtrl,
-                          decoration: const InputDecoration(labelText: 'Order No. (optional)'))),
-                      const SizedBox(width: 12),
-                      Expanded(child: TextFormField(controller: _notesCtrl,
-                          decoration: const InputDecoration(labelText: 'Notes (optional)'))),
-                    ]),
-                  ]),
-                )),
-                const SizedBox(height: 16),
-
-                // ── Items Table ────────────────────────────────
-                Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                  Text('Items', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold, color: Colors.grey)),
-                  TextButton.icon(
-                    icon: const Icon(Icons.add),
-                    label: const Text('Add Row'),
-                    onPressed: () => setState(() => _rows.add(_SaleRow())),
                   ),
-                ]),
-                ...List.generate(_rows.length, (i) => _buildItemRow(i)),
-                const SizedBox(height: 16),
 
-                // ── Payment ────────────────────────────────────
-                Text('Payment', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold, color: Colors.grey)),
-                const SizedBox(height: 8),
-                Card(child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(children: [
-                    Row(children: [
-                      Expanded(child: DropdownButtonFormField<String>(
-                        initialValue: _paymentType,
-                        decoration: const InputDecoration(labelText: 'Payment Type'),
-                        items: ['Cash', 'UPI', 'Bank Transfer', 'Cheque', 'Credit']
-                            .map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
-                        onChanged: (v) => setState(() {
-                          _paymentType = v!;
-                          if (v != 'Credit') {
-                            _amountPaidCtrl.text = _total.toStringAsFixed(2);
-                          } else {
-                            _amountPaidCtrl.clear();
-                          }
-                        }),
-                      )),
-                      const SizedBox(width: 12),
-                      Expanded(child: TextFormField(
-                        controller: _amountPaidCtrl,
-                        decoration: InputDecoration(
-                          labelText: 'Amount Paid ₹',
-                          hintText: cf.format(_total),
+                  const SizedBox(height: 16),
+
+                  // ── Items ─────────────────────────────────────
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('Items',
+                          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.bold, color: Colors.grey)),
+                      TextButton.icon(
+                        icon: const Icon(Icons.add),
+                        label: const Text('Add Row'),
+                        onPressed: () => setState(() => _rows.add(_SaleRow())),
+                      ),
+                    ],
+                  ),
+
+                  // Single StreamBuilder for all item rows (avoids N subscriptions)
+                  StreamBuilder<List<ItemModel>>(
+                    stream: svc.streamItems(category: 'product'),
+                    builder: (ctx, snap) {
+                      final items = snap.data ?? [];
+                      return Column(
+                        children: List.generate(
+                          _rows.length,
+                          (i) => _buildItemRow(i, items),
                         ),
-                        keyboardType: TextInputType.number,
-                        onChanged: (_) => setState(() {}),
-                      )),
-                    ]),
-                    const SizedBox(height: 8),
-                    // Totals summary
-                    _TotalsRow(rows: _rows, amountPaid: double.tryParse(_amountPaidCtrl.text) ?? 0),
-                  ]),
-                )),
-              ]),
+                      );
+                    },
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // ── Payment ────────────────────────────────────
+                  Text('Payment',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.bold, color: Colors.grey)),
+                  const SizedBox(height: 8),
+
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        children: [
+
+                          Row(
+                            children: [
+                              Expanded(
+                                child: DropdownButtonFormField<String>(
+                                  value: _paymentType,
+                                  decoration: const InputDecoration(labelText: 'Payment Type'),
+                                  items: ['Cash', 'UPI', 'Bank Transfer', 'Cheque', 'Credit']
+                                      .map((t) => DropdownMenuItem(value: t, child: Text(t)))
+                                      .toList(),
+                                  onChanged: (v) => setState(() {
+                                    _paymentType = v!;
+                                    if (v != 'Credit') {
+                                      _amountPaidCtrl.text = _total.toStringAsFixed(2);
+                                    } else {
+                                      _amountPaidCtrl.clear();
+                                    }
+                                  }),
+                                ),
+                              ),
+
+                              const SizedBox(width: 10),
+
+                              Expanded(
+                                child: TextFormField(
+                                  controller: _paymentRefCtrl,
+                                  decoration: const InputDecoration(
+                                      labelText: 'Payment Ref. (cheque/UPI no.)'),
+                                ),
+                              ),
+                            ],
+                          ),
+
+                          const SizedBox(height: 10),
+
+                          TextFormField(
+                            controller: _amountPaidCtrl,
+                            decoration: InputDecoration(
+                              labelText: 'Amount Paid ₹',
+                              hintText: cf.format(_total),
+                            ),
+                            keyboardType: TextInputType.number,
+                            onChanged: (_) => setState(() {}),
+                          ),
+
+                          const SizedBox(height: 8),
+
+                          _TotalsRow(
+                            rows: _rows,
+                            amountPaid: double.tryParse(_amountPaidCtrl.text) ?? 0,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
 
-          // Bottom bar
+          // Bottom Bar
           Container(
             padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              boxShadow: [BoxShadow(blurRadius: 8, color: Colors.black.withOpacity(0.1))],
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    cf.format(_total),
+                    style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.primary),
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: _saving ? null : _save,
+                  child: _saving
+                      ? const CircularProgressIndicator(color: Colors.white)
+                      : Text(_isEditing ? 'Update Invoice' : 'Save Invoice'),
+                ),
+              ],
             ),
-            child: Row(children: [
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                const Text('Total', style: TextStyle(color: Colors.grey, fontSize: 12)),
-                Text(cf.format(_total),
-                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppTheme.primary)),
-                if ((double.tryParse(_amountPaidCtrl.text) ?? 0) < _total && _total > 0)
-                  Text('Balance: ${cf.format(_total - (double.tryParse(_amountPaidCtrl.text) ?? 0))}',
-                      style: const TextStyle(color: AppTheme.payable, fontSize: 12)),
-              ])),
-              ElevatedButton(
-                onPressed: _saving ? null : _save,
-                child: _saving
-                    ? const SizedBox(height: 20, width: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                    : const Text('Save Invoice'),
-              ),
-            ]),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildItemRow(int i) {
+  Widget _buildItemRow(int i, List<ItemModel> items) {
     final row = _rows[i];
+
+    // Resolve item reference for edit-mode rows once the stream delivers data
+    if (row.item == null && row.preloadedItemId != null) {
+      final matches = items.where((item) => item.id == row.preloadedItemId);
+      if (matches.isNotEmpty) row.item = matches.first;
+    }
+
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       child: Padding(
         padding: const EdgeInsets.all(12),
-        child: Column(children: [
-          Row(children: [
-            Expanded(child: StreamBuilder<List<ItemModel>>(
-              stream: svc.streamItems(category: 'product'),
-              builder: (ctx, snap) {
-                final items = snap.data ?? [];
-                return DropdownButtonFormField<ItemModel>(
-                  initialValue: row.item,
-                  hint: const Text('Select product'),
-                  decoration: const InputDecoration(labelText: 'Product'),
-                  items: items.map((p) => DropdownMenuItem(
-                    value: p,
-                    child: Text('${p.name} (${p.stockQty} ${p.unit})', overflow: TextOverflow.ellipsis),
-                  )).toList(),
-                  onChanged: (v) => setState(() {
-                    row.item = v;
-                    row.priceCtrl.text = v?.salePrice.toStringAsFixed(2) ?? '';
-                    row.unitCtrl.text = v?.unit ?? '';
-                    row.taxCtrl.text = v?.taxPercent.toStringAsFixed(0) ?? '0';
-                  }),
-                );
-              },
-            )),
-            IconButton(
-              icon: const Icon(Icons.delete_outline, color: Colors.red),
-              onPressed: () => setState(() => _rows.removeAt(i)),
+        child: Column(
+          children: [
+
+            Row(
+              children: [
+                Expanded(
+                  child: DropdownButtonFormField<ItemModel>(
+                    value: row.item,
+                    hint: const Text('Select product'),
+                    decoration: const InputDecoration(labelText: 'Product'),
+                    items: items.map((p) => DropdownMenuItem(
+                      value: p,
+                      child: Text('${p.name} (${p.stockQty} ${p.primaryUnit})'),
+                    )).toList(),
+                    onChanged: (v) => setState(() {
+                      row.item = v;
+                      row.priceCtrl.text = v?.effectiveSalePrice.toStringAsFixed(2) ?? '';
+                      row.unitCtrl.text = v?.primaryUnit ?? '';
+                      row.taxCtrl.text = v?.taxPercent.toStringAsFixed(0) ?? '0';
+                    }),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.delete_outline, color: Colors.red),
+                  // Prevent deleting the last row
+                  onPressed: _rows.length > 1
+                      ? () => setState(() {
+                            _rows[i].dispose();
+                            _rows.removeAt(i);
+                          })
+                      : null,
+                ),
+              ],
             ),
-          ]),
-          const SizedBox(height: 8),
-          Row(children: [
-            Expanded(child: TextFormField(
-              controller: row.qtyCtrl,
-              decoration: const InputDecoration(labelText: 'Qty'),
-              keyboardType: TextInputType.number,
-              onChanged: (_) => setState(() {}),
-            )),
-            const SizedBox(width: 6),
-            Expanded(child: TextFormField(
-              controller: row.unitCtrl,
-              decoration: const InputDecoration(labelText: 'Unit'),
-            )),
-            const SizedBox(width: 6),
-            Expanded(child: TextFormField(
-              controller: row.priceCtrl,
-              decoration: const InputDecoration(labelText: '₹/unit (excl tax)'),
-              keyboardType: TextInputType.number,
-              onChanged: (_) => setState(() {}),
-            )),
-            const SizedBox(width: 6),
-            Expanded(child: TextFormField(
-              controller: row.discountCtrl,
-              decoration: const InputDecoration(labelText: 'Disc %'),
-              keyboardType: TextInputType.number,
-              onChanged: (_) => setState(() {}),
-            )),
-            const SizedBox(width: 6),
-            Expanded(child: TextFormField(
-              controller: row.taxCtrl,
-              decoration: const InputDecoration(labelText: 'Tax %'),
-              keyboardType: TextInputType.number,
-              onChanged: (_) => setState(() {}),
-            )),
-          ]),
-          const SizedBox(height: 6),
-          Align(
-            alignment: Alignment.centerRight,
-            child: Text(
-              'Price incl. tax: ₹${row.priceInclTax.toStringAsFixed(2)}/unit   '
-              'Amount: ₹${row.lineTotal.toStringAsFixed(2)}',
-              style: const TextStyle(fontWeight: FontWeight.w600, color: AppTheme.primary),
+
+            const SizedBox(height: 8),
+
+            Row(
+              children: [
+                Expanded(
+                  child: TextFormField(
+                    controller: row.qtyCtrl,
+                    decoration: const InputDecoration(labelText: 'Qty'),
+                    keyboardType: TextInputType.number,
+                    onChanged: (_) => setState(() {}),
+                  ),
+                ),
+
+                const SizedBox(width: 6),
+
+                Expanded(
+                  child: TextFormField(
+                    controller: row.unitCtrl,
+                    decoration: const InputDecoration(labelText: 'Unit'),
+                  ),
+                ),
+
+                const SizedBox(width: 6),
+
+                Expanded(
+                  child: TextFormField(
+                    controller: row.priceCtrl,
+                    decoration: const InputDecoration(labelText: '₹/unit'),
+                    keyboardType: TextInputType.number,
+                    onChanged: (_) => setState(() {}),
+                  ),
+                ),
+
+                const SizedBox(width: 6),
+
+                Expanded(
+                  child: TextFormField(
+                    controller: row.discountCtrl,
+                    decoration: const InputDecoration(labelText: 'Disc %'),
+                    keyboardType: TextInputType.number,
+                    onChanged: (_) => setState(() {}),
+                  ),
+                ),
+
+                const SizedBox(width: 6),
+
+                // Tax preset selector + manual entry field
+                Expanded(
+                  child: Column(
+                    children: [
+                      DropdownButtonFormField<String>(
+                        decoration: const InputDecoration(labelText: 'Tax', isDense: true),
+                        items: const [
+                          DropdownMenuItem(value: '0', child: Text('None (0%)')),
+                          DropdownMenuItem(value: '5', child: Text('GST 5%')),
+                          DropdownMenuItem(value: '12', child: Text('GST 12%')),
+                          DropdownMenuItem(value: '18', child: Text('GST 18%')),
+                          DropdownMenuItem(value: '28', child: Text('GST 28%')),
+                          DropdownMenuItem(value: 'custom', child: Text('Custom...')),
+                        ],
+                        onChanged: (v) {
+                          if (v == null || v == 'custom') return;
+                          setState(() => row.taxCtrl.text = v);
+                        },
+                      ),
+                      TextFormField(
+                        controller: row.taxCtrl,
+                        decoration: const InputDecoration(labelText: '% value', isDense: true),
+                        keyboardType: TextInputType.number,
+                        onChanged: (_) => setState(() {}),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-          ),
-        ]),
+          ],
+        ),
       ),
     );
   }
 
   Future<void> _save() async {
     if (_partyNameCtrl.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Party name is required')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Party name is required')));
       return;
     }
-    if (_rows.isEmpty || _rows.every((r) => r.item == null)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Add at least one item')));
+
+    final validRows = _rows.where((r) => r.isValid).toList();
+    if (validRows.isEmpty) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Add at least one item')));
       return;
     }
+
     setState(() => _saving = true);
+
     try {
-      // Auto-create party if not selected from list
-      String partyId = _selectedParty?.id ?? '';
-      if (_selectedParty == null) {
+      String partyId;
+      if (_selectedParty != null) {
+        partyId = _selectedParty!.id;
+      } else if (_isEditing) {
+        // Keep the original party when editing without re-selecting
+        partyId = widget.existing!.partyId;
+      } else {
         partyId = await svc.upsertPartyFromSale(
           name: _partyNameCtrl.text.trim(),
-          firm: _partyFirmCtrl.text.isEmpty ? null : _partyFirmCtrl.text.trim(),
-          phone: _partyPhoneCtrl.text.isEmpty ? null : _partyPhoneCtrl.text.trim(),
+          firm: _partyFirmCtrl.text.trim(),
+          phone: _partyPhoneCtrl.text.trim(),
         );
       }
 
-      final invoiceNo = await svc.nextInvoiceNo();
-      final amountPaid = double.tryParse(_amountPaidCtrl.text) ?? _total;
+      // Reuse invoice number when editing; generate a new one for new sales
+      final invoiceNo = _isEditing
+          ? widget.existing!.invoiceNo
+          : await svc.nextSaleInvoiceNo(_selectedDate);
 
       final sale = SaleModel(
-        id: const Uuid().v4(),
+        id: _isEditing ? widget.existing!.id : const Uuid().v4(),
         invoiceNo: invoiceNo,
         partyId: partyId,
         partyName: _partyNameCtrl.text.trim(),
-        partyFirm: _partyFirmCtrl.text.isEmpty ? null : _partyFirmCtrl.text.trim(),
-        partyPhone: _partyPhoneCtrl.text.isEmpty ? null : _partyPhoneCtrl.text.trim(),
-        items: _rows.where((r) => r.item != null).map((r) => SaleItem(
-          itemId: r.item!.id,
-          itemName: r.item!.name,
+        partyFirm: _partyFirmCtrl.text.trim().isEmpty ? null : _partyFirmCtrl.text.trim(),
+        partyPhone: _partyPhoneCtrl.text.trim().isEmpty ? null : _partyPhoneCtrl.text.trim(),
+        items: validRows.map((r) => SaleItem(
+          itemId: r.effectiveItemId,
+          itemName: r.effectiveItemName,
           qty: double.tryParse(r.qtyCtrl.text) ?? 0,
           unit: r.unitCtrl.text,
           priceExclTax: double.tryParse(r.priceCtrl.text) ?? 0,
@@ -320,42 +529,67 @@ class _AddSaleScreenState extends State<AddSaleScreen> {
           discountPercent: double.tryParse(r.discountCtrl.text) ?? 0,
         )).toList(),
         paymentType: _paymentType,
-        amountPaid: amountPaid,
-        notes: _notesCtrl.text.isEmpty ? null : _notesCtrl.text.trim(),
-        orderNo: _orderNoCtrl.text.isEmpty ? null : _orderNoCtrl.text.trim(),
+        paymentRef: _paymentRefCtrl.text.trim().isEmpty ? null : _paymentRefCtrl.text.trim(),
+        amountPaid: double.tryParse(_amountPaidCtrl.text) ?? _total,
+        date: _selectedDate,
+        notes: _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
       );
 
-      await svc.addSale(sale);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Invoice saved!'), backgroundColor: Colors.green));
-        Navigator.pop(context);
+      if (_isEditing) {
+        await svc.updateSale(sale);
+      } else {
+        await svc.addSale(sale);
       }
+
+      if (mounted) Navigator.pop(context);
     } catch (e) {
-      setState(() => _saving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
+      if (mounted) {
+        setState(() => _saving = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error saving invoice: $e')),
+        );
+      }
     }
   }
 }
 
+// ── Helper classes ────────────────────────────────────────────────────────────
+
 class _SaleRow {
   ItemModel? item;
+  final String? preloadedItemId;   // Used in edit mode to match from stream
+  final String? preloadedItemName; // Fallback name when item can't be matched
+
   final qtyCtrl = TextEditingController(text: '1');
-  final priceCtrl = TextEditingController();
   final unitCtrl = TextEditingController();
+  final priceCtrl = TextEditingController();
   final discountCtrl = TextEditingController(text: '0');
   final taxCtrl = TextEditingController(text: '0');
 
+  _SaleRow({this.preloadedItemId, this.preloadedItemName});
+
+  bool get isValid => item != null || preloadedItemId != null;
+  String get effectiveItemId => item?.id ?? preloadedItemId ?? '';
+  String get effectiveItemName => item?.name ?? preloadedItemName ?? '';
+
   double get qty => double.tryParse(qtyCtrl.text) ?? 0;
-  double get price => double.tryParse(priceCtrl.text) ?? 0;
-  double get discount => double.tryParse(discountCtrl.text) ?? 0;
-  double get tax => double.tryParse(taxCtrl.text) ?? 0;
-  double get discountAmount => price * discount / 100;
-  double get priceAfterDiscount => price - discountAmount;
-  double get taxAmount => priceAfterDiscount * tax / 100;
+  double get priceExclTax => double.tryParse(priceCtrl.text) ?? 0;
+  double get discountPercent => double.tryParse(discountCtrl.text) ?? 0;
+  double get taxPercent => double.tryParse(taxCtrl.text) ?? 0;
+
+  double get discountAmount => priceExclTax * discountPercent / 100;
+  double get priceAfterDiscount => priceExclTax - discountAmount;
+  double get taxAmount => priceAfterDiscount * taxPercent / 100;
   double get priceInclTax => priceAfterDiscount + taxAmount;
   double get lineTotal => qty * priceInclTax;
+
+  void dispose() {
+    qtyCtrl.dispose();
+    unitCtrl.dispose();
+    priceCtrl.dispose();
+    discountCtrl.dispose();
+    taxCtrl.dispose();
+  }
 }
 
 class _TotalsRow extends StatelessWidget {
@@ -365,35 +599,56 @@ class _TotalsRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final subtotal = rows.fold<double>(0, (s, r) => s + (r.qty * r.price));
-    final discount = rows.fold<double>(0, (s, r) => s + (r.qty * r.discountAmount));
-    final tax = rows.fold<double>(0, (s, r) => s + (r.qty * r.taxAmount));
-    final total = subtotal - discount + tax;
-    final balance = total - amountPaid;
     final cf = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
+    final subtotal = rows.fold(0.0, (s, r) => s + r.qty * r.priceExclTax);
+    final totalDiscount = rows.fold(0.0, (s, r) => s + r.qty * r.discountAmount);
+    final totalTax = rows.fold(0.0, (s, r) => s + r.qty * r.taxAmount);
+    final total = rows.fold(0.0, (s, r) => s + r.lineTotal);
+    final balance = (total - amountPaid).clamp(0.0, double.infinity);
 
-    return Column(children: [
-      _Row('Subtotal', cf.format(subtotal), Colors.black87),
-      if (discount > 0) _Row('Discount', '- ${cf.format(discount)}', Colors.orange),
-      if (tax > 0) _Row('Tax', '+ ${cf.format(tax)}', Colors.grey),
-      const Divider(),
-      _Row('Total', cf.format(total), AppTheme.primary, bold: true),
-      _Row('Amount Paid', cf.format(amountPaid), AppTheme.receivable),
-      if (balance > 0.01) _Row('Balance Due', cf.format(balance), AppTheme.payable, bold: true),
-    ]);
+    return Column(
+      children: [
+        const Divider(),
+        _TotalLine('Subtotal', cf.format(subtotal)),
+        if (totalDiscount > 0.01)
+          _TotalLine('Discount', '- ${cf.format(totalDiscount)}'),
+        if (totalTax > 0.01)
+          _TotalLine('Tax', '+ ${cf.format(totalTax)}'),
+        const Divider(height: 4),
+        _TotalLine('Total', cf.format(total), bold: true),
+        _TotalLine(
+          'Balance Due',
+          cf.format(balance),
+          color: balance > 0.01 ? AppTheme.payable : AppTheme.receivable,
+        ),
+      ],
+    );
   }
 }
 
-class _Row extends StatelessWidget {
-  final String label, value;
-  final Color color;
+class _TotalLine extends StatelessWidget {
+  final String label;
+  final String value;
   final bool bold;
-  const _Row(this.label, this.value, this.color, {this.bold = false});
-  @override Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 2),
-    child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-      Text(label, style: TextStyle(color: Colors.grey.shade600)),
-      Text(value, style: TextStyle(color: color, fontWeight: bold ? FontWeight.bold : FontWeight.normal)),
-    ]),
-  );
+  final Color? color;
+  const _TotalLine(this.label, this.value, {this.bold = false, this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    final style = TextStyle(
+      fontWeight: bold ? FontWeight.bold : FontWeight.normal,
+      color: color,
+      fontSize: bold ? 15 : 13,
+    );
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: style),
+          Text(value, style: style),
+        ],
+      ),
+    );
+  }
 }

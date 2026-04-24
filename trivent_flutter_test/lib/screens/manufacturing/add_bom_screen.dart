@@ -5,21 +5,46 @@ import '../../models/item_model.dart';
 import '../../services/firestore_service.dart';
 
 class AddBomScreen extends StatefulWidget {
-  const AddBomScreen({super.key});
+  final BomModel? existing;
+  const AddBomScreen({super.key, this.existing});
   @override State<AddBomScreen> createState() => _AddBomScreenState();
 }
 
 class _AddBomScreenState extends State<AddBomScreen> {
   final svc = FirestoreService();
   ItemModel? _selectedProduct;
+  String? _pendingProductId;
   final List<_MaterialRow> _materialRows = [];
   final List<_CostRow> _costRows = [];
   bool _saving = false;
 
   @override
+  void initState() {
+    super.initState();
+    if (widget.existing != null) _populateFromExisting();
+  }
+
+  void _populateFromExisting() {
+    final e = widget.existing!;
+    _pendingProductId = e.productId;
+    _materialRows.addAll(e.materials.map((m) => _MaterialRow(
+      materialId: m.materialId,
+      qty: m.qtyPerUnit.toString(),
+      price: m.pricePerUnit.toString(),
+      unit: m.unit,
+    )));
+    _costRows.addAll(e.otherCosts.map((c) => _CostRow(
+      type: c.type,
+      cost: c.costPerUnit.toString(),
+      unit: c.unit,
+    )));
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final isEditing = widget.existing != null;
     return Scaffold(
-      appBar: AppBar(title: const Text('Create Bill of Materials')),
+      appBar: AppBar(title: Text(isEditing ? 'Edit Bill of Materials' : 'Create Bill of Materials')),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -32,6 +57,14 @@ class _AddBomScreenState extends State<AddBomScreen> {
               stream: svc.streamItems(category: 'product'),
               builder: (ctx, snap) {
                 final products = snap.data ?? [];
+                if (_pendingProductId != null && _selectedProduct == null) {
+                  final matches = products.where((p) => p.id == _pendingProductId);
+                  if (matches.isNotEmpty) {
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (mounted) setState(() { _selectedProduct = matches.first; _pendingProductId = null; });
+                    });
+                  }
+                }
                 return DropdownButtonFormField<ItemModel>(
                   initialValue: _selectedProduct,
                   hint: const Text('Select product'),
@@ -63,6 +96,14 @@ class _AddBomScreenState extends State<AddBomScreen> {
                       stream: svc.streamItems(category: 'raw_material'),
                       builder: (ctx, snap) {
                         final mats = snap.data ?? [];
+                        if (row.materialId != null && row.material == null) {
+                          final matches = mats.where((m) => m.id == row.materialId);
+                          if (matches.isNotEmpty) {
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              if (mounted) setState(() { row.material = matches.first; row.materialId = null; });
+                            });
+                          }
+                        }
                         return DropdownButtonFormField<ItemModel>(
                           initialValue: row.material,
                           hint: const Text('Select material'),
@@ -71,7 +112,7 @@ class _AddBomScreenState extends State<AddBomScreen> {
                           onChanged: (v) => setState(() {
                             row.material = v;
                             row.priceController.text = v?.purchasePrice.toString() ?? '';
-                            row.unitController.text = v?.unit ?? '';
+                            row.unitController.text = v?.primaryUnit ?? '';
                           }),
                         );
                       },
@@ -157,7 +198,7 @@ class _AddBomScreenState extends State<AddBomScreen> {
                 child: _saving
                     ? const SizedBox(height: 20, width: 20,
                         child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                    : const Text('Save BoM'),
+                    : Text(isEditing ? 'Update BoM' : 'Save BoM'),
               ),
             ),
           ],
@@ -175,7 +216,7 @@ class _AddBomScreenState extends State<AddBomScreen> {
     setState(() => _saving = true);
     try {
       final bom = BomModel(
-        id: const Uuid().v4(),
+        id: widget.existing?.id ?? const Uuid().v4(),
         productId: _selectedProduct!.id,
         productName: _selectedProduct!.name,
         materials: _materialRows
@@ -193,11 +234,14 @@ class _AddBomScreenState extends State<AddBomScreen> {
               costPerUnit: double.tryParse(r.costController.text) ?? 0,
               unit: r.unitController.text,
             )).toList(),
+        createdAt: widget.existing?.createdAt,
       );
       await svc.saveBom(bom);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('BoM saved!'), backgroundColor: Colors.green));
+          SnackBar(
+            content: Text(widget.existing == null ? 'BoM saved!' : 'BoM updated!'),
+            backgroundColor: Colors.green));
         Navigator.pop(context);
       }
     } catch (e) {
@@ -210,13 +254,23 @@ class _AddBomScreenState extends State<AddBomScreen> {
 
 class _MaterialRow {
   ItemModel? material;
-  final qtyController = TextEditingController();
-  final priceController = TextEditingController();
-  final unitController = TextEditingController();
+  String? materialId;
+  final TextEditingController qtyController;
+  final TextEditingController priceController;
+  final TextEditingController unitController;
+
+  _MaterialRow({this.materialId, String qty = '', String price = '', String unit = ''})
+      : qtyController = TextEditingController(text: qty),
+        priceController = TextEditingController(text: price),
+        unitController = TextEditingController(text: unit);
 }
 
 class _CostRow {
-  String type = 'Labor';
-  final costController = TextEditingController();
-  final unitController = TextEditingController(text: 'per 1000 bricks');
+  String type;
+  final TextEditingController costController;
+  final TextEditingController unitController;
+
+  _CostRow({this.type = 'Labor', String cost = '', String unit = 'per 1000 bricks'})
+      : costController = TextEditingController(text: cost),
+        unitController = TextEditingController(text: unit);
 }

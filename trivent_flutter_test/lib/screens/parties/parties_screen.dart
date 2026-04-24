@@ -3,6 +3,7 @@ import '../../services/firestore_service.dart';
 import '../../models/party_model.dart';
 import '../../theme.dart';
 import 'add_party_screen.dart';
+import 'party_detail_screen.dart';
 
 class PartiesScreen extends StatelessWidget {
   const PartiesScreen({super.key});
@@ -44,6 +45,8 @@ class PartiesScreen extends StatelessWidget {
               return Card(
                 margin: const EdgeInsets.only(bottom: 8),
                 child: ListTile(
+                  onTap: () => Navigator.push(context,
+                      MaterialPageRoute(builder: (_) => PartyDetailScreen(party: p))),
                   leading: CircleAvatar(
                     backgroundColor: AppTheme.primary.withOpacity(0.1),
                     child: Text(p.name[0].toUpperCase(),

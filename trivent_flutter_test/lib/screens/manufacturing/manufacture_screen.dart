@@ -53,7 +53,7 @@ class _ManufactureScreenState extends State<ManufactureScreen> {
                   decoration: const InputDecoration(labelText: 'Product'),
                   items: products.map((p) => DropdownMenuItem(
                     value: p,
-                    child: Text('${p.name} (Stock: ${p.stockQty} ${p.unit})'),
+                    child: Text('${p.name} (Stock: ${p.stockQty} ${p.primaryUnit})'),
                   )).toList(),
                   onChanged: (v) async {
                     setState(() { _selectedProduct = v; _previewText = null; });

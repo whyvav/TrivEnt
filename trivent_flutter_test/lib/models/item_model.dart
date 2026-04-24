@@ -1,88 +1,129 @@
-// Represents both Products (finished bricks) and Raw Materials (clay, coal, etc.)
 class ItemModel {
   final String id;
   final String name;
-  final String category;      // 'product' or 'raw_material'
-  final String unit;          // 'pieces', 'kg', 'tons', etc.
+  final String category;          // 'product' or 'raw_material'
+  final String primaryUnit;
+  final String? secondaryUnit;
+  final double? conversionFactor; // 1 primaryUnit = conversionFactor secondaryUnits
+  final String? itemCode;
+  final String? description;
+  final String? hsn;
   final double salePrice;
+  final bool salePriceWithTax;    // whether salePrice already includes tax
   final double purchasePrice;
+  final bool purchasePriceWithTax;
   final double taxPercent;
   final double stockQty;
   final double minStockAlert;
-  final String? hsn;
-  final String? description;
+  final DateTime? stockAsOfDate;
+  final double stockAtPrice;      // average price of opening stock
+  final String? itemLocation;
   final DateTime createdAt;
 
   ItemModel({
     required this.id,
     required this.name,
     required this.category,
-    required this.unit,
+    required this.primaryUnit,
+    this.secondaryUnit,
+    this.conversionFactor,
+    this.itemCode,
+    this.description,
+    this.hsn,
     this.salePrice = 0,
+    this.salePriceWithTax = false,
     this.purchasePrice = 0,
+    this.purchasePriceWithTax = false,
     this.taxPercent = 0,
     this.stockQty = 0,
     this.minStockAlert = 0,
-    this.hsn,
-    this.description,
+    this.stockAsOfDate,
+    this.stockAtPrice = 0,
+    this.itemLocation,
     DateTime? createdAt,
   }) : createdAt = createdAt ?? DateTime.now();
 
-  // Convert to Map for Firestore
-  Map<String, dynamic> toMap() {
-    return {
-      'id': id,
-      'name': name,
-      'category': category,
-      'unit': unit,
-      'salePrice': salePrice,
-      'purchasePrice': purchasePrice,
-      'taxPercent': taxPercent,
-      'stockQty': stockQty,
-      'minStockAlert': minStockAlert,
-      'hsn': hsn,
-      'description': description,
-      'createdAt': createdAt.toIso8601String(),
-    };
-  }
+  // Effective prices (always excl. tax, for calculations)
+  double get effectiveSalePrice => salePriceWithTax && taxPercent > 0
+      ? salePrice / (1 + taxPercent / 100)
+      : salePrice;
 
-  // Create from Firestore Map
-  factory ItemModel.fromMap(Map<String, dynamic> map) {
-    return ItemModel(
-      id: map['id'] ?? '',
-      name: map['name'] ?? '',
-      category: map['category'] ?? 'product',
-      unit: map['unit'] ?? 'pieces',
-      salePrice: (map['salePrice'] ?? 0).toDouble(),
-      purchasePrice: (map['purchasePrice'] ?? 0).toDouble(),
-      taxPercent: (map['taxPercent'] ?? 0).toDouble(),
-      stockQty: (map['stockQty'] ?? 0).toDouble(),
-      minStockAlert: (map['minStockAlert'] ?? 0).toDouble(),
-      hsn: map['hsn'],
-      description: map['description'],
-      createdAt: map['createdAt'] != null
-          ? DateTime.parse(map['createdAt'])
-          : DateTime.now(),
-    );
-  }
+  double get effectivePurchasePrice => purchasePriceWithTax && taxPercent > 0
+      ? purchasePrice / (1 + taxPercent / 100)
+      : purchasePrice;
 
-  // Copy with some fields changed (like Python dataclass replace)
-  ItemModel copyWith({double? stockQty}) {
-    return ItemModel(
-      id: id,
-      name: name,
-      category: category,
-      unit: unit,
-      salePrice: salePrice,
-      purchasePrice: purchasePrice,
-      taxPercent: taxPercent ?? taxPercent,
-      stockQty: stockQty ?? this.stockQty,
-      minStockAlert: minStockAlert,
-      hsn: hsn,
-      description: description,
-      createdAt: createdAt,
-    );
-  }
+  double get stockValue => stockQty * (category == 'product' ? salePrice : purchasePrice);
+
+  String get unitDisplay => primaryUnit;
+
+  Map<String, dynamic> toMap() => {
+    'id': id,
+    'name': name,
+    'category': category,
+    'primaryUnit': primaryUnit,
+    'secondaryUnit': secondaryUnit,
+    'conversionFactor': conversionFactor,
+    'itemCode': itemCode,
+    'description': description,
+    'hsn': hsn,
+    'salePrice': salePrice,
+    'salePriceWithTax': salePriceWithTax,
+    'purchasePrice': purchasePrice,
+    'purchasePriceWithTax': purchasePriceWithTax,
+    'taxPercent': taxPercent,
+    'stockQty': stockQty,
+    'minStockAlert': minStockAlert,
+    'stockAsOfDate': stockAsOfDate?.toIso8601String(),
+    'stockAtPrice': stockAtPrice,
+    'itemLocation': itemLocation,
+    'createdAt': createdAt.toIso8601String(),
+    // Legacy compat
+    'unit': primaryUnit,
+  };
+
+  factory ItemModel.fromMap(Map<String, dynamic> m) => ItemModel(
+    id: m['id'] ?? '',
+    name: m['name'] ?? '',
+    category: m['category'] ?? 'product',
+    primaryUnit: m['primaryUnit'] ?? m['unit'] ?? 'pcs',
+    secondaryUnit: m['secondaryUnit'],
+    conversionFactor: m['conversionFactor'] != null
+        ? (m['conversionFactor'] as num).toDouble()
+        : null,
+    itemCode: m['itemCode'],
+    description: m['description'],
+    hsn: m['hsn'],
+    salePrice: (m['salePrice'] ?? 0).toDouble(),
+    salePriceWithTax: m['salePriceWithTax'] ?? false,
+    purchasePrice: (m['purchasePrice'] ?? 0).toDouble(),
+    purchasePriceWithTax: m['purchasePriceWithTax'] ?? false,
+    taxPercent: (m['taxPercent'] ?? 0).toDouble(),
+    stockQty: (m['stockQty'] ?? 0).toDouble(),
+    minStockAlert: (m['minStockAlert'] ?? 0).toDouble(),
+    stockAsOfDate: m['stockAsOfDate'] != null
+        ? DateTime.parse(m['stockAsOfDate'])
+        : null,
+    stockAtPrice: (m['stockAtPrice'] ?? 0).toDouble(),
+    itemLocation: m['itemLocation'],
+    createdAt: m['createdAt'] != null
+        ? DateTime.parse(m['createdAt'])
+        : DateTime.now(),
+  );
+
+  ItemModel copyWith({double? stockQty, double? taxPercent}) => ItemModel(
+    id: id, name: name, category: category,
+    primaryUnit: primaryUnit, secondaryUnit: secondaryUnit,
+    conversionFactor: conversionFactor, itemCode: itemCode,
+    description: description, hsn: hsn,
+    salePrice: salePrice, salePriceWithTax: salePriceWithTax,
+    purchasePrice: purchasePrice, purchasePriceWithTax: purchasePriceWithTax,
+    taxPercent: taxPercent ?? this.taxPercent,
+    stockQty: stockQty ?? this.stockQty,
+    minStockAlert: minStockAlert,
+    stockAsOfDate: stockAsOfDate, stockAtPrice: stockAtPrice,
+    itemLocation: itemLocation, createdAt: createdAt,
+  );
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) || (other is ItemModel && other.id == id);

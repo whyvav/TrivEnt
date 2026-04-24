@@ -27,7 +27,7 @@ class _EditItemScreenState extends State<EditItemScreen> {
     super.initState();
     final i = widget.item;
     _category = i.category;
-    _unit = _units.contains(i.unit) ? i.unit : 'pieces';
+    _unit = _units.contains(i.primaryUnit) ? i.primaryUnit : 'pieces';
     _taxPercent = _taxOptions.contains(i.taxPercent) ? i.taxPercent : 0;
     _name = TextEditingController(text: i.name);
     _salePrice = TextEditingController(text: i.salePrice.toString());
@@ -133,7 +133,7 @@ class _EditItemScreenState extends State<EditItemScreen> {
         id: widget.item.id,
         name: _name.text.trim(),
         category: _category,
-        unit: _unit,
+        primaryUnit: _unit,
         taxPercent: _taxPercent,
         salePrice: double.tryParse(_salePrice.text) ?? 0,
         purchasePrice: double.tryParse(_purchasePrice.text) ?? 0,

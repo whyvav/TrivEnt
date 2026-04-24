@@ -6,7 +6,9 @@ import '../../services/firestore_service.dart';
 import 'package:trivent_flutter_test/screens/inventory/inventory_screen.dart';
 import 'package:trivent_flutter_test/screens/inventory/add_item_screen.dart';
 import 'package:trivent_flutter_test/screens/sales/add_sale_screen.dart';
+import 'package:trivent_flutter_test/screens/purchases/add_purchase_screen.dart';
 import 'package:trivent_flutter_test/screens/manufacturing/manufacture_screen.dart';
+
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
 
@@ -98,6 +100,12 @@ class DashboardScreen extends StatelessWidget {
                     icon: Icons.precision_manufacturing,
                     onTap: () => Navigator.push(context,
                         MaterialPageRoute(builder: (_) => const ManufactureScreen())),
+                  ),
+                  _QuickActionButton(
+                  label: 'New Purchase',
+                  icon: Icons.shopping_basket_outlined,
+                  onTap: () => Navigator.push(context,
+                      MaterialPageRoute(builder: (_) => const AddPurchaseScreen())),
                   ),
                 ]),
 
@@ -191,12 +199,76 @@ class DashboardScreen extends StatelessWidget {
                                 child: ListTile(
                                   leading: const Icon(Icons.warning_amber, color: AppTheme.payable),
                                   title: Text(item.name),
-                                  subtitle: Text('${item.stockQty} ${item.unit} remaining'),
+                                  subtitle: Text('${item.stockQty} ${item.primaryUnit} remaining'),
                                   trailing: Text('Min: ${item.minStockAlert}',
                                       style: const TextStyle(color: AppTheme.payable)),
                                 ),
                               ))
                           .toList(),
+                    );
+                  },
+                ),
+
+                const SizedBox(height: 24),
+                Text('Recent Transactions',
+                    style: Theme.of(context).textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                FutureBuilder<List<Map<String, dynamic>>>(
+                  future: svc.getAllTransactions(limit: 30),
+                  builder: (ctx, snap) {
+                    if (!snap.hasData) return const SizedBox(height: 60,
+                        child: Center(child: CircularProgressIndicator()));
+                    final txs = snap.data!;
+                    if (txs.isEmpty) return Card(child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: const Text('No transactions yet.', style: TextStyle(color: Colors.grey))));
+
+                    return Card(
+                      child: Column(
+                        children: txs.map((tx) {
+                          final type = tx['type'] as String;
+                          final isSale = type == 'Sale';
+                          final isExpense = type == 'Expense';
+                          Color typeColor = isSale
+                              ? AppTheme.receivable
+                              : isExpense
+                                  ? Colors.orange
+                                  : AppTheme.payable;
+                          return Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                            decoration: BoxDecoration(
+                                border: Border(bottom: BorderSide(color: Colors.grey.shade100))),
+                            child: Row(children: [
+                              Container(
+                                width: 48,
+                                padding: const EdgeInsets.symmetric(vertical: 3),
+                                decoration: BoxDecoration(
+                                    color: typeColor.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(6)),
+                                child: Text(type[0],
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(fontWeight: FontWeight.bold, color: typeColor)),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                Text(tx['party'] as String,
+                                    style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
+                                    overflow: TextOverflow.ellipsis),
+                                Text(tx['ref'] as String,
+                                    style: TextStyle(color: Colors.grey.shade500, fontSize: 11)),
+                              ])),
+                              Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                                Text(NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0)
+                                    .format(tx['amount']),
+                                    style: TextStyle(fontWeight: FontWeight.bold, color: typeColor)),
+                                Text(DateFormat('dd MMM').format(tx['date'] as DateTime),
+                                    style: TextStyle(color: Colors.grey.shade500, fontSize: 11)),
+                              ]),
+                            ]),
+                          );
+                        }).toList(),
+                      ),
                     );
                   },
                 ),

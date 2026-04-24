@@ -28,14 +28,12 @@ class BomScreen extends StatelessWidget {
           }
           final boms = snap.data ?? [];
           if (boms.isEmpty) {
-            return Center(
-              child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                Icon(Icons.list_alt_outlined, size: 64, color: Colors.grey.shade300),
-                const SizedBox(height: 16),
-                const Text('No BoM defined yet.'),
-                const Text('Create a recipe for each product.'),
-              ]),
-            );
+            return Center(child: Column(
+              mainAxisAlignment: MainAxisAlignment.center, children: [
+              Icon(Icons.list_alt_outlined, size: 64, color: Colors.grey.shade300),
+              const SizedBox(height: 16),
+              const Text('No BoM defined. Tap + to create a recipe.'),
+            ]));
           }
           return ListView.builder(
             padding: const EdgeInsets.all(16),
@@ -44,46 +42,98 @@ class BomScreen extends StatelessWidget {
               final bom = boms[i];
               return Card(
                 margin: const EdgeInsets.only(bottom: 12),
-                child: ExpansionTile(
-                  leading: CircleAvatar(
-                    backgroundColor: AppTheme.primary.withOpacity(0.1),
-                    child: const Icon(Icons.view_in_ar, color: AppTheme.primary),
-                  ),
-                  title: Text(bom.productName, style: const TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: Text('Cost/unit: ₹${bom.totalCostPerUnit.toStringAsFixed(2)}'),
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('Raw Materials:', style: TextStyle(fontWeight: FontWeight.w600)),
-                          ...bom.materials.map((m) => ListTile(
-                            dense: true,
-                            title: Text(m.materialName),
-                            subtitle: Text('${m.qtyPerUnit} ${m.unit} @ ₹${m.pricePerUnit}/${m.unit}'),
-                            trailing: Text('₹${m.costPerUnit.toStringAsFixed(2)}'),
-                          )),
-                          if (bom.otherCosts.isNotEmpty) ...[
-                            const Divider(),
-                            const Text('Other Costs:', style: TextStyle(fontWeight: FontWeight.w600)),
-                            ...bom.otherCosts.map((c) => ListTile(
-                              dense: true,
-                              title: Text(c.type),
-                              trailing: Text('₹${c.costPerUnit.toStringAsFixed(2)}/${c.unit}'),
-                            )),
-                          ],
-                          const Divider(),
-                          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                            const Text('Total Cost/unit:', style: TextStyle(fontWeight: FontWeight.bold)),
-                            Text('₹${bom.totalCostPerUnit.toStringAsFixed(2)}',
-                                style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.primary)),
-                          ]),
-                        ],
-                      ),
+                child: Column(children: [
+                  ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor: AppTheme.primary.withOpacity(0.1),
+                      child: const Icon(Icons.view_in_ar, color: AppTheme.primary),
                     ),
-                  ],
-                ),
+                    title: Text(bom.productName,
+                        style: const TextStyle(fontWeight: FontWeight.bold)),
+                    subtitle: Text(
+                        'Cost/unit: ₹${bom.totalCostPerUnit.toStringAsFixed(2)}'),
+                    trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                      IconButton(
+                        icon: const Icon(Icons.edit_outlined, size: 20),
+                        tooltip: 'Edit',
+                        onPressed: () => Navigator.push(context,
+                            MaterialPageRoute(
+                                builder: (_) => AddBomScreen(existing: bom))),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline, size: 20,
+                            color: Colors.red),
+                        tooltip: 'Delete',
+                        onPressed: () async {
+                          final ok = await showDialog<bool>(
+                            context: context,
+                            builder: (_) => AlertDialog(
+                              title: const Text('Delete BoM?'),
+                              content: Text(
+                                  'Delete BoM for "${bom.productName}"?'),
+                              actions: [
+                                TextButton(
+                                    onPressed: () => Navigator.pop(context, false),
+                                    child: const Text('Cancel')),
+                                TextButton(
+                                    onPressed: () => Navigator.pop(context, true),
+                                    child: const Text('Delete',
+                                        style: TextStyle(color: Colors.red))),
+                              ],
+                            ),
+                          );
+                          if (ok == true) await svc.deleteBom(bom.id);
+                        },
+                      ),
+                    ]),
+                  ),
+                  // Expandable details
+                  ExpansionTile(
+                    title: const Text('View Recipe',
+                        style: TextStyle(fontSize: 12, color: AppTheme.primary)),
+                    tilePadding: const EdgeInsets.symmetric(horizontal: 16),
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (bom.materials.isNotEmpty) ...[
+                              const Text('Materials:',
+                                  style: TextStyle(fontWeight: FontWeight.w600)),
+                              ...bom.materials.map((m) => ListTile(dense: true,
+                                title: Text(m.materialName),
+                                subtitle: Text(
+                                    '${m.qtyPerUnit} ${m.unit} @ ₹${m.pricePerUnit}/${m.unit}'),
+                                trailing: Text(
+                                    '₹${m.costPerUnit.toStringAsFixed(2)}'))),
+                            ],
+                            if (bom.otherCosts.isNotEmpty) ...[
+                              const Divider(),
+                              const Text('Other Costs:',
+                                  style: TextStyle(fontWeight: FontWeight.w600)),
+                              ...bom.otherCosts.map((c) => ListTile(dense: true,
+                                title: Text(c.type),
+                                trailing: Text(
+                                    '₹${c.costPerUnit.toStringAsFixed(2)}/${c.unit}'))),
+                            ],
+                            const Divider(),
+                            Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                              const Text('Total Cost/unit:',
+                                  style: TextStyle(fontWeight: FontWeight.bold)),
+                              Text('₹${bom.totalCostPerUnit.toStringAsFixed(2)}',
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: AppTheme.primary)),
+                            ]),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ]),
               );
             },
           );
