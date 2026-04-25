@@ -132,16 +132,14 @@ class _MainShellState extends State<MainShell> {
     // Mobile: bottom nav shows first 5, rest in "More" drawer
     return Scaffold(
       body: _screens[_selectedIndex],
-      drawer: _selectedIndex >= 5
-          ? null
-          : Drawer(
+      drawer: Drawer(
               child: ListView(children: [
                 const DrawerHeader(
                   decoration: BoxDecoration(color: AppTheme.primary),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Icon(Icons.factory, color: Colors.white, size: 40),
                     SizedBox(height: 8),
-                    Text('Brick ERP', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                    Text('TrivEnt', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
                   ]),
                 ),
                 ..._navItems.asMap().entries.map((e) => ListTile(

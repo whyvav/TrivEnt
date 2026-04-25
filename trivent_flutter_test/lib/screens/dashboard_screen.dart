@@ -75,7 +75,7 @@ class DashboardScreen extends StatelessWidget {
 
                 const SizedBox(height: 24),
 
-                // Quick actions — WORKING NOW
+                // Quick actions
                 Text('Quick Actions',
                     style: Theme.of(context)
                         .textTheme
@@ -84,16 +84,16 @@ class DashboardScreen extends StatelessWidget {
                 const SizedBox(height: 12),
                 Wrap(spacing: 12, runSpacing: 12, children: [
                   _QuickActionButton(
-                    label: 'New Sale',
+                    label: 'Sale',
                     icon: Icons.add_shopping_cart,
                     onTap: () => Navigator.push(context,
                         MaterialPageRoute(builder: (_) => const AddSaleScreen())),
                   ),
                   _QuickActionButton(
-                    label: 'Add Item',
-                    icon: Icons.add_box_outlined,
-                    onTap: () => Navigator.push(context,
-                        MaterialPageRoute(builder: (_) => const AddItemScreen())),
+                  label: 'Purchase',
+                  icon: Icons.shopping_basket_outlined,
+                  onTap: () => Navigator.push(context,
+                      MaterialPageRoute(builder: (_) => const AddPurchaseScreen())),
                   ),
                   _QuickActionButton(
                     label: 'Manufacture',
@@ -102,10 +102,10 @@ class DashboardScreen extends StatelessWidget {
                         MaterialPageRoute(builder: (_) => const ManufactureScreen())),
                   ),
                   _QuickActionButton(
-                  label: 'New Purchase',
-                  icon: Icons.shopping_basket_outlined,
-                  onTap: () => Navigator.push(context,
-                      MaterialPageRoute(builder: (_) => const AddPurchaseScreen())),
+                    label: 'Add Item',
+                    icon: Icons.add_box_outlined,
+                    onTap: () => Navigator.push(context,
+                        MaterialPageRoute(builder: (_) => const AddItemScreen())),
                   ),
                 ]),
 
