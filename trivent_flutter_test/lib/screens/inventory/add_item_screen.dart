@@ -351,7 +351,17 @@ class _AddItemScreenState extends State<AddItemScreen> {
           ));
         }
       } else {
+        final oldQty = widget.existing!.stockQty;
         await svc.updateItem(item);
+        if ((item.stockQty - oldQty).abs() > 0.001) {
+          await svc.logStockTx(StockTransactionModel(
+            id: 'edit_${item.id}_${DateTime.now().millisecondsSinceEpoch}',
+            itemId: item.id, itemName: item.name,
+            type: 'Adjusted', quantity: item.stockQty - oldQty,
+            pricePerUnit: item.stockAtPrice, date: _stockAsOfDate,
+            notes: 'Stock updated via item edit',
+          ));
+        }
       }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

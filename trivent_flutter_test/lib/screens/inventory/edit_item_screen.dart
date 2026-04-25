@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../models/item_model.dart';
+import '../../models/stock_transaction_model.dart';
 import '../../services/firestore_service.dart';
 import '../../theme.dart';
 
@@ -143,7 +144,17 @@ class _EditItemScreenState extends State<EditItemScreen> {
         description: _description.text.isEmpty ? null : _description.text.trim(),
         createdAt: widget.item.createdAt,
       );
+      final oldQty = widget.item.stockQty;
       await svc.updateItem(updated);
+      if ((updated.stockQty - oldQty).abs() > 0.001) {
+        await svc.logStockTx(StockTransactionModel(
+          id: 'edit_${updated.id}_${DateTime.now().millisecondsSinceEpoch}',
+          itemId: updated.id, itemName: updated.name,
+          type: 'Adjusted', quantity: updated.stockQty - oldQty,
+          pricePerUnit: updated.purchasePrice, date: DateTime.now(),
+          notes: 'Stock updated via item edit',
+        ));
+      }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Updated!'), backgroundColor: Colors.green));

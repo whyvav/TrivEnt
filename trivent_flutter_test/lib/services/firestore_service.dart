@@ -199,18 +199,33 @@ class FirestoreService {
     return ItemModel.fromMap(d.data() as Map<String, dynamic>);
   }
 
-  Future<void> deleteItem(String id) => _items.doc(id).delete();
+  Future<void> deleteItem(String id) async {
+    final item = await getItem(id);
+    if (item != null && item.stockQty != 0) {
+      await logStockTx(StockTransactionModel(
+        id: 'deleted_${id}_${DateTime.now().millisecondsSinceEpoch}',
+        itemId: id, itemName: item.name,
+        type: 'Deleted', quantity: -item.stockQty,
+        pricePerUnit: item.stockAtPrice, date: DateTime.now(),
+        notes: 'Item deleted (${item.stockQty} ${item.primaryUnit} written off)',
+      ));
+    }
+    await _items.doc(id).delete();
+  }
 
   // ── STOCK TRANSACTIONS ───────────────────────────────────────
 
   Stream<List<StockTransactionModel>> streamStockTransactions(String itemId) =>
       _stockTx
           .where('itemId', isEqualTo: itemId)
-          .orderBy('date', descending: true)
           .snapshots()
-          .map((s) => s.docs
-              .map((d) => StockTransactionModel.fromMap(d.data() as Map<String, dynamic>))
-              .toList());
+          .map((s) {
+            final list = s.docs
+                .map((d) => StockTransactionModel.fromMap(d.data() as Map<String, dynamic>))
+                .toList();
+            list.sort((a, b) => b.date.compareTo(a.date));
+            return list;
+          });
 
   Future<void> logStockTx(StockTransactionModel tx) =>
       _stockTx.doc(tx.id).set(tx.toMap());
@@ -365,7 +380,24 @@ Future<void> addSale(SaleModel sale) async {
   Future<void> updateSale(SaleModel sale) =>
       _sales.doc(sale.id).update(sale.toMap());
 
-  Future<void> deleteSale(String id) => _sales.doc(id).delete();
+  Future<void> deleteSale(String id) async {
+    final saleDoc = await _sales.doc(id).get();
+    if (!saleDoc.exists) { await _sales.doc(id).delete(); return; }
+    final sale = SaleModel.fromMap(saleDoc.data() as Map<String, dynamic>);
+
+    final batch = _db.batch();
+    batch.delete(_sales.doc(id));
+    for (final si in sale.items) {
+      final ref = _items.doc(si.itemId);
+      final snap = await ref.get();
+      if (snap.exists) {
+        final current = ItemModel.fromMap(snap.data() as Map<String, dynamic>);
+        batch.update(ref, {'stockQty': current.stockQty + si.qty});
+      }
+      batch.delete(_stockTx.doc('sale_${id}_${si.itemId}'));
+    }
+    await batch.commit();
+  }
 
   // ── PURCHASES ────────────────────────────────────────────────
 
@@ -399,7 +431,24 @@ Future<void> addSale(SaleModel sale) async {
     await batch.commit();
   }
 
-  Future<void> deletePurchase(String id) => _purchases.doc(id).delete();
+  Future<void> deletePurchase(String id) async {
+    final purchaseDoc = await _purchases.doc(id).get();
+    if (!purchaseDoc.exists) { await _purchases.doc(id).delete(); return; }
+    final purchase = PurchaseModel.fromMap(purchaseDoc.data() as Map<String, dynamic>);
+
+    final batch = _db.batch();
+    batch.delete(_purchases.doc(id));
+    for (final pi in purchase.items) {
+      final ref = _items.doc(pi.itemId);
+      final snap = await ref.get();
+      if (snap.exists) {
+        final current = ItemModel.fromMap(snap.data() as Map<String, dynamic>);
+        batch.update(ref, {'stockQty': current.stockQty - pi.qty});
+      }
+      batch.delete(_stockTx.doc('pur_${id}_${pi.itemId}'));
+    }
+    await batch.commit();
+  }
 
   // ── EXPENSES ─────────────────────────────────────────────────
 

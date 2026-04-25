@@ -132,6 +132,13 @@ class ItemDetailScreen extends StatelessWidget {
           StreamBuilder<List<StockTransactionModel>>(
             stream: svc.streamStockTransactions(item.id),
             builder: (ctx, snap) {
+              if (snap.hasError) {
+                return Card(child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text('Error loading transactions: ${snap.error}',
+                      style: const TextStyle(color: Colors.red, fontSize: 12)),
+                ));
+              }
               if (snap.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator());
               }
@@ -182,6 +189,9 @@ class ItemDetailScreen extends StatelessWidget {
                                 style: TextStyle(color: Colors.grey.shade500, fontSize: 10)),
                             if (tx.referenceNo != null)
                               Text('Ref: ${tx.referenceNo}',
+                                  style: TextStyle(color: Colors.grey.shade500, fontSize: 10)),
+                            if (tx.notes != null)
+                              Text(tx.notes!,
                                   style: TextStyle(color: Colors.grey.shade500, fontSize: 10)),
                           ],
                         )),
