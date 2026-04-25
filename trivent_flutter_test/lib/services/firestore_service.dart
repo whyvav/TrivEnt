@@ -431,6 +431,9 @@ Future<void> addSale(SaleModel sale) async {
     await batch.commit();
   }
 
+  Future<void> updatePurchase(PurchaseModel purchase) =>
+      _purchases.doc(purchase.id).update(purchase.toMap());
+
   Future<void> deletePurchase(String id) async {
     final purchaseDoc = await _purchases.doc(id).get();
     if (!purchaseDoc.exists) { await _purchases.doc(id).delete(); return; }
