@@ -29,4 +29,4 @@ git push
 
 # Deployment (Phone App)
 flutter build apk --release
-### manual updates, e.g., USB transfer or or WhatsApp or Google Drive
+Then manual updates, e.g., USB transfer or or WhatsApp or Google Drive
