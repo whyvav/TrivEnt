@@ -17,9 +17,9 @@ class PdfService {
 
   // ── Company details (hardcode here, move to settings later) ──
   static const String companyName = 'Triveni Enterprises';
-  static const String companyAddress = 'Behind PB Inter College, Pratapgarh City, UP - 230002';
+  static const String companyAddress = 'Near PB Inter College, Pratapgarh City, UP - 230002';
   static const String companyPhone = 'Phone: +91 9918513605';
-  static const String companyGST = 'GSTIN: XXXXXXXXXXXXXXXXX';
+  static const String companyGST = 'GSTIN: 09BUWPS2265Q2ZA';
 
   final cf = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
   final df = DateFormat('dd/MM/yyyy');
