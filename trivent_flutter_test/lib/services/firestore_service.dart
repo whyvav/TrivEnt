@@ -69,7 +69,7 @@ class FirestoreService {
         'sale'       => 'S',
         'purchase'   => 'P',
         'receipt'    => 'R',
-        'paymentout' => 'PMT',
+        'paymentout' => 'T',
         _            => type[0].toUpperCase(),
       };
       return '${financialYear(date)}/${dateCode(date)}/$prefix${next.toString().padLeft(2, '0')}';
@@ -593,27 +593,45 @@ Future<void> addSale(SaleModel sale) async {
     };
   }
 
-  /// All transactions combined (sales + purchases + expenses), newest first
+  /// All transactions combined (sales + purchases + expenses + pay-ins + pay-outs), newest first
   Future<List<Map<String, dynamic>>> getAllTransactions({int limit = 50}) async {
-    final salesSnap = await _sales.orderBy('date', descending: true).limit(limit).get();
-    final purchasesSnap = await _purchases.orderBy('date', descending: true).limit(limit).get();
-    final expensesSnap = await _expenses.orderBy('date', descending: true).limit(limit).get();
+    final results = await Future.wait([
+      _sales.orderBy('date', descending: true).limit(limit).get(),
+      _purchases.orderBy('date', descending: true).limit(limit).get(),
+      _expenses.orderBy('date', descending: true).limit(limit).get(),
+      _paymentIns.orderBy('date', descending: true).limit(limit).get(),
+      _paymentOuts.orderBy('date', descending: true).limit(limit).get(),
+    ]);
 
     final List<Map<String, dynamic>> all = [];
-    for (final d in salesSnap.docs) {
+    for (final d in results[0].docs) {
       final s = SaleModel.fromMap(d.data() as Map<String, dynamic>);
       all.add({'type': 'Sale', 'id': s.id, 'ref': s.invoiceNo, 'party': s.partyName,
-        'amount': s.totalAmount, 'paid': s.amountPaid, 'date': s.date, 'isPaid': s.isPaid});
+        'amount': s.totalAmount, 'paid': s.amountPaid, 'date': s.date, 'isPaid': s.isPaid,
+        'model': s});
     }
-    for (final d in purchasesSnap.docs) {
+    for (final d in results[1].docs) {
       final p = PurchaseModel.fromMap(d.data() as Map<String, dynamic>);
       all.add({'type': 'Purchase', 'id': p.id, 'ref': p.billNo, 'party': p.partyName,
-        'amount': p.totalAmount, 'paid': p.amountPaid, 'date': p.date, 'isPaid': p.isPaid});
+        'amount': p.totalAmount, 'paid': p.amountPaid, 'date': p.date, 'isPaid': p.isPaid,
+        'model': p});
     }
-    for (final d in expensesSnap.docs) {
+    for (final d in results[2].docs) {
       final e = ExpenseModel.fromMap(d.data() as Map<String, dynamic>);
       all.add({'type': 'Expense', 'id': e.id, 'ref': e.category, 'party': e.partyName ?? '-',
         'amount': e.amount, 'paid': e.amount, 'date': e.date, 'isPaid': true});
+    }
+    for (final d in results[3].docs) {
+      final pi = PaymentInModel.fromMap(d.data() as Map<String, dynamic>);
+      all.add({'type': 'PaymentIn', 'id': pi.id, 'ref': pi.receiptNo, 'party': pi.partyName,
+        'amount': pi.amount, 'paid': pi.amount, 'date': pi.date, 'isPaid': true,
+        'model': pi});
+    }
+    for (final d in results[4].docs) {
+      final po = PaymentOutModel.fromMap(d.data() as Map<String, dynamic>);
+      all.add({'type': 'PaymentOut', 'id': po.id, 'ref': po.paymentNo, 'party': po.partyName,
+        'amount': po.amount, 'paid': po.amount, 'date': po.date, 'isPaid': true,
+        'model': po});
     }
     all.sort((a, b) => (b['date'] as DateTime).compareTo(a['date'] as DateTime));
     return all.take(limit).toList();

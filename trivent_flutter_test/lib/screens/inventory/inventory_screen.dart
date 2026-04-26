@@ -260,17 +260,17 @@ class _ItemList extends StatelessWidget {
               },
             ),
           ),
-          // Footer: total stock value (NOT hidden by FAB)
+          // Footer: total stock value — centered to avoid FAB overlap
           Container(
             color: AppTheme.primary.withOpacity(0.1),
-            padding: const EdgeInsets.fromLTRB(12, 10, 80, 10), // right padding avoids FAB
-            child: Row(children: [
-              const Text('Stock Value', style: TextStyle(fontWeight: FontWeight.bold)),
-              const Spacer(),
-              Text(cf.format(grandTotal),
-                  style: const TextStyle(
-                      fontWeight: FontWeight.bold, color: AppTheme.primary, fontSize: 15)),
-            ]),
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            width: double.infinity,
+            child: Text(
+              'Stock Value:  ${cf.format(grandTotal)}',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                  fontWeight: FontWeight.bold, color: AppTheme.primary, fontSize: 15),
+            ),
           ),
         ]);
       },

@@ -3,10 +3,18 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 import '../../theme.dart';
 import '../../services/firestore_service.dart';
+import '../../models/sale_model.dart';
+import '../../models/purchase_model.dart';
+import '../../models/payment_in_model.dart';
+import '../../models/payment_out_model.dart';
 import 'package:trivent_flutter_test/screens/inventory/inventory_screen.dart';
 import 'package:trivent_flutter_test/screens/inventory/add_item_screen.dart';
 import 'package:trivent_flutter_test/screens/sales/add_sale_screen.dart';
+import 'package:trivent_flutter_test/screens/sales/sale_detail_screen.dart';
+import 'package:trivent_flutter_test/screens/sales/add_payment_in_screen.dart';
 import 'package:trivent_flutter_test/screens/purchases/add_purchase_screen.dart';
+import 'package:trivent_flutter_test/screens/purchases/purchase_detail_screen.dart';
+import 'package:trivent_flutter_test/screens/purchases/add_payment_out_screen.dart';
 import 'package:trivent_flutter_test/screens/manufacturing/manufacture_screen.dart';
 import 'package:trivent_flutter_test/screens/parties/add_party_screen.dart';
 
@@ -236,44 +244,67 @@ class DashboardScreen extends StatelessWidget {
                       child: Column(
                         children: txs.map((tx) {
                           final type = tx['type'] as String;
-                          final isSale = type == 'Sale';
-                          final isExpense = type == 'Expense';
-                          Color typeColor = isSale
-                              ? AppTheme.receivable
-                              : isExpense
-                                  ? Colors.orange
-                                  : AppTheme.payable;
-                          return Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                            decoration: BoxDecoration(
-                                border: Border(bottom: BorderSide(color: Colors.grey.shade100))),
-                            child: Row(children: [
-                              Container(
-                                width: 48,
-                                padding: const EdgeInsets.symmetric(vertical: 3),
-                                decoration: BoxDecoration(
-                                    color: typeColor.withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(6)),
-                                child: Text(type[0],
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(fontWeight: FontWeight.bold, color: typeColor)),
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                Text(tx['party'] as String,
-                                    style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
-                                    overflow: TextOverflow.ellipsis),
-                                Text(tx['ref'] as String,
-                                    style: TextStyle(color: Colors.grey.shade500, fontSize: 11)),
-                              ])),
-                              Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                                Text(NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0)
-                                    .format(tx['amount']),
-                                    style: TextStyle(fontWeight: FontWeight.bold, color: typeColor)),
-                                Text(DateFormat('dd MMM').format(tx['date'] as DateTime),
-                                    style: TextStyle(color: Colors.grey.shade500, fontSize: 11)),
+                          final Color typeColor = switch (type) {
+                            'Sale' || 'PaymentIn' => AppTheme.receivable,
+                            'Expense' => Colors.orange,
+                            _ => AppTheme.payable,
+                          };
+                          final String badge = switch (type) {
+                            'Sale' => 'S',
+                            'Purchase' => 'P',
+                            'PaymentIn' => 'PI',
+                            'PaymentOut' => 'PO',
+                            _ => 'E',
+                          };
+                          final model = tx['model'];
+                          return InkWell(
+                            onTap: model == null ? null : () {
+                              if (model is SaleModel) {
+                                Navigator.push(ctx, MaterialPageRoute(
+                                    builder: (_) => SaleDetailScreen(sale: model)));
+                              } else if (model is PurchaseModel) {
+                                Navigator.push(ctx, MaterialPageRoute(
+                                    builder: (_) => PurchaseDetailScreen(purchase: model)));
+                              } else if (model is PaymentInModel) {
+                                Navigator.push(ctx, MaterialPageRoute(
+                                    builder: (_) => AddPaymentInScreen(existing: model)));
+                              } else if (model is PaymentOutModel) {
+                                Navigator.push(ctx, MaterialPageRoute(
+                                    builder: (_) => AddPaymentOutScreen(existing: model)));
+                              }
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                              decoration: BoxDecoration(
+                                  border: Border(bottom: BorderSide(color: Colors.grey.shade100))),
+                              child: Row(children: [
+                                Container(
+                                  width: 48,
+                                  padding: const EdgeInsets.symmetric(vertical: 3),
+                                  decoration: BoxDecoration(
+                                      color: typeColor.withValues(alpha: 0.1),
+                                      borderRadius: BorderRadius.circular(6)),
+                                  child: Text(badge,
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(fontWeight: FontWeight.bold, color: typeColor, fontSize: 12)),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                  Text(tx['party'] as String,
+                                      style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
+                                      overflow: TextOverflow.ellipsis),
+                                  Text(tx['ref'] as String,
+                                      style: TextStyle(color: Colors.grey.shade500, fontSize: 11)),
+                                ])),
+                                Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                                  Text(NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0)
+                                      .format(tx['amount']),
+                                      style: TextStyle(fontWeight: FontWeight.bold, color: typeColor)),
+                                  Text(DateFormat('dd MMM').format(tx['date'] as DateTime),
+                                      style: TextStyle(color: Colors.grey.shade500, fontSize: 11)),
+                                ]),
                               ]),
-                            ]),
+                            ),
                           );
                         }).toList(),
                       ),
