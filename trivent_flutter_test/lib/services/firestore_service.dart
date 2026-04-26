@@ -7,6 +7,8 @@ import '../models/purchase_model.dart';
 import '../models/expense_model.dart';
 import '../models/unit_model.dart';
 import '../models/stock_transaction_model.dart';
+import '../models/payment_in_model.dart';
+import '../models/payment_out_model.dart';
 
 class FirestoreService {
   static final FirestoreService _instance = FirestoreService._internal();
@@ -37,6 +39,10 @@ class FirestoreService {
       _db.collection('users').doc(_userId).collection('units');
   CollectionReference get _stockTx =>
       _db.collection('users').doc(_userId).collection('stock_transactions');
+  CollectionReference get _paymentIns =>
+      _db.collection('users').doc(_userId).collection('payment_ins');
+  CollectionReference get _paymentOuts =>
+      _db.collection('users').doc(_userId).collection('payment_outs');
 
   // ── Invoice Numbering ────────────────────────────────────────
 
@@ -59,7 +65,13 @@ class FirestoreService {
       final current = snap.exists ? (snap.data() as Map)['value'] as int : 0;
       final next = current + 1;
       tx.set(ref, {'value': next});
-      final prefix = type == 'sale' ? 'S' : 'P';
+      final prefix = switch (type) {
+        'sale'       => 'S',
+        'purchase'   => 'P',
+        'receipt'    => 'R',
+        'paymentout' => 'PMT',
+        _            => type[0].toUpperCase(),
+      };
       return '${financialYear(date)}/${dateCode(date)}/$prefix${next.toString().padLeft(2, '0')}';
     });
   }
@@ -68,6 +80,10 @@ class FirestoreService {
       _nextDailyNumber('sale', date ?? DateTime.now());
   Future<String> nextPurchaseBillNo([DateTime? date]) =>
       _nextDailyNumber('purchase', date ?? DateTime.now());
+  Future<String> nextPaymentInNo([DateTime? date]) =>
+      _nextDailyNumber('receipt', date ?? DateTime.now());
+  Future<String> nextPaymentOutNo([DateTime? date]) =>
+      _nextDailyNumber('paymentout', date ?? DateTime.now());
 
   // ── UNITS ────────────────────────────────────────────────────
 
@@ -128,21 +144,68 @@ class FirestoreService {
     return id;
   }
 
-  /// Returns {receivable, received, payable, paid}
+  // ── PAYMENT IN ───────────────────────────────────────────────
+
+  Stream<List<PaymentInModel>> streamPaymentIns() => _paymentIns
+      .orderBy('date', descending: true)
+      .snapshots()
+      .map((s) => s.docs
+          .map((d) => PaymentInModel.fromMap(d.data() as Map<String, dynamic>))
+          .toList());
+
+  Future<void> addPaymentIn(PaymentInModel p) =>
+      _paymentIns.doc(p.id).set(p.toMap());
+
+  Future<void> updatePaymentIn(PaymentInModel p) =>
+      _paymentIns.doc(p.id).update(p.toMap());
+
+  Future<void> deletePaymentIn(String id) => _paymentIns.doc(id).delete();
+
+  // ── PAYMENT OUT ──────────────────────────────────────────────────────────
+
+  Stream<List<PaymentOutModel>> streamPaymentOuts() => _paymentOuts
+      .orderBy('date', descending: true)
+      .snapshots()
+      .map((s) => s.docs
+          .map((d) => PaymentOutModel.fromMap(d.data() as Map<String, dynamic>))
+          .toList());
+
+  Future<void> addPaymentOut(PaymentOutModel p) =>
+      _paymentOuts.doc(p.id).set(p.toMap());
+
+  Future<void> updatePaymentOut(PaymentOutModel p) =>
+      _paymentOuts.doc(p.id).update(p.toMap());
+
+  Future<void> deletePaymentOut(String id) => _paymentOuts.doc(id).delete();
+
+  /// Returns {receivable, received, payable, paid, netBalance}
+  /// received includes payment-ins; paid includes payment-outs.
   Future<Map<String, double>> getPartyBalance(String partyId) async {
-    final salesSnap = await _sales.where('partyId', isEqualTo: partyId).get();
-    final purchasesSnap = await _purchases.where('partyId', isEqualTo: partyId).get();
+    final results = await Future.wait([
+      _sales.where('partyId', isEqualTo: partyId).get(),
+      _purchases.where('partyId', isEqualTo: partyId).get(),
+      _paymentIns.where('partyId', isEqualTo: partyId).get(),
+      _paymentOuts.where('partyId', isEqualTo: partyId).get(),
+    ]);
 
     double receivable = 0, received = 0, payable = 0, paid = 0;
-    for (final d in salesSnap.docs) {
+    for (final d in results[0].docs) {
       final s = SaleModel.fromMap(d.data() as Map<String, dynamic>);
       receivable += s.totalAmount;
       received += s.amountPaid;
     }
-    for (final d in purchasesSnap.docs) {
+    for (final d in results[1].docs) {
       final p = PurchaseModel.fromMap(d.data() as Map<String, dynamic>);
       payable += p.totalAmount;
       paid += p.amountPaid;
+    }
+    for (final d in results[2].docs) {
+      final pi = PaymentInModel.fromMap(d.data() as Map<String, dynamic>);
+      received += pi.amount;
+    }
+    for (final d in results[3].docs) {
+      final po = PaymentOutModel.fromMap(d.data() as Map<String, dynamic>);
+      paid += po.amount;
     }
     return {
       'receivable': receivable,
@@ -154,11 +217,15 @@ class FirestoreService {
   }
 
   Future<List<Map<String, dynamic>>> getPartyTransactions(String partyId) async {
-    final salesSnap = await _sales.where('partyId', isEqualTo: partyId).get();
-    final purchasesSnap = await _purchases.where('partyId', isEqualTo: partyId).get();
+    final results = await Future.wait([
+      _sales.where('partyId', isEqualTo: partyId).get(),
+      _purchases.where('partyId', isEqualTo: partyId).get(),
+      _paymentIns.where('partyId', isEqualTo: partyId).get(),
+      _paymentOuts.where('partyId', isEqualTo: partyId).get(),
+    ]);
 
     final List<Map<String, dynamic>> all = [];
-    for (final d in salesSnap.docs) {
+    for (final d in results[0].docs) {
       final s = SaleModel.fromMap(d.data() as Map<String, dynamic>);
       all.add({
         'type': 'Sale', 'id': s.id, 'refNo': s.invoiceNo,
@@ -166,12 +233,28 @@ class FirestoreService {
         'paid': s.amountPaid, 'balance': s.balanceDue,
       });
     }
-    for (final d in purchasesSnap.docs) {
+    for (final d in results[1].docs) {
       final p = PurchaseModel.fromMap(d.data() as Map<String, dynamic>);
       all.add({
         'type': 'Purchase', 'id': p.id, 'refNo': p.billNo,
         'date': p.date, 'amount': p.totalAmount,
         'paid': p.amountPaid, 'balance': p.balanceDue,
+      });
+    }
+    for (final d in results[2].docs) {
+      final pi = PaymentInModel.fromMap(d.data() as Map<String, dynamic>);
+      all.add({
+        'type': 'PaymentIn', 'id': pi.id, 'refNo': pi.receiptNo,
+        'date': pi.date, 'amount': pi.amount,
+        'paid': pi.amount, 'balance': 0.0,
+      });
+    }
+    for (final d in results[3].docs) {
+      final po = PaymentOutModel.fromMap(d.data() as Map<String, dynamic>);
+      all.add({
+        'type': 'PaymentOut', 'id': po.id, 'refNo': po.paymentNo,
+        'date': po.date, 'amount': po.amount,
+        'paid': po.amount, 'balance': 0.0,
       });
     }
     all.sort((a, b) => (b['date'] as DateTime).compareTo(a['date'] as DateTime));
