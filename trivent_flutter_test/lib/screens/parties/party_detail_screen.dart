@@ -27,6 +27,31 @@ class PartyDetailScreen extends StatelessWidget {
             onPressed: () => Navigator.pushReplacement(context,
                 MaterialPageRoute(builder: (_) => AddPartyScreen(party: party))),
           ),
+          IconButton(
+            icon: const Icon(Icons.delete_outline, color: Colors.red),
+            onPressed: () async {
+              final ok = await showDialog<bool>(
+                context: context,
+                builder: (_) => AlertDialog(
+                  title: const Text('Delete Party?'),
+                  content: Text('Delete "${party.name}"? This cannot be undone.'),
+                  actions: [
+                    TextButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        child: const Text('Cancel')),
+                    TextButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        child: const Text('Delete',
+                            style: TextStyle(color: Colors.red))),
+                  ],
+                ),
+              );
+              if (ok == true) {
+                await svc.deleteParty(party.id);
+                if (context.mounted) Navigator.pop(context);
+              }
+            },
+          ),
         ],
       ),
       body: SingleChildScrollView(
