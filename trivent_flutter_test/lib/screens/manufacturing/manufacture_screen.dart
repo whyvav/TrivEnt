@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import '../../services/firestore_service.dart';
 import '../../models/item_model.dart';
 import '../../models/bom_model.dart';
@@ -29,22 +30,6 @@ class _ManufactureScreenState extends State<ManufactureScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Card(
-              color: AppTheme.primary.withValues(alpha: 0.05),
-              child: const Padding(
-                padding: EdgeInsets.all(16),
-                child: Row(children: [
-                  Icon(Icons.info_outline, color: AppTheme.primary),
-                  SizedBox(width: 12),
-                  Expanded(child: Text(
-                    'Select a product and quantity. The system will automatically '
-                    'deduct raw materials using the BoM and add finished goods to inventory.',
-                  )),
-                ]),
-              ),
-            ),
-            const SizedBox(height: 24),
-
             const Text('Product to Manufacture',
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
             const SizedBox(height: 8),
@@ -130,6 +115,12 @@ class _ManufactureScreenState extends State<ManufactureScreen> {
                 label: Text(_loading ? 'Processing...' : 'Start Manufacturing'),
               ),
             ),
+            const SizedBox(height: 32),
+
+            const Text('Production History',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            const SizedBox(height: 8),
+            _ProductionHistory(svc: svc),
           ],
         ),
       ),
@@ -239,6 +230,7 @@ class _ManufactureScreenState extends State<ManufactureScreen> {
         productName: _selectedProduct!.name,
         qty: qty,
         bom: bom,
+        salePrice: _selectedProduct!.salePrice,
       );
 
       if (mounted) {
@@ -281,6 +273,115 @@ class _ManufactureScreenState extends State<ManufactureScreen> {
     } finally {
       setState(() => _loading = false);
     }
+  }
+}
+
+// ── Production History ────────────────────────────────────────────
+
+class _ProductionHistory extends StatelessWidget {
+  final FirestoreService svc;
+  const _ProductionHistory({required this.svc});
+
+  @override
+  Widget build(BuildContext context) {
+    final cf = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
+    final df = DateFormat('dd MMM yy, hh:mm a');
+
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: svc.streamProductions(),
+      builder: (ctx, snap) {
+        if (snap.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final records = snap.data ?? [];
+        if (records.isEmpty) {
+          return Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(children: [
+                Icon(Icons.info_outline, color: Colors.grey.shade400),
+                const SizedBox(width: 8),
+                const Text('No production runs yet.',
+                    style: TextStyle(color: Colors.grey)),
+              ]),
+            ),
+          );
+        }
+        return Card(
+          child: Column(children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(12)),
+              ),
+              child: const Row(children: [
+                Expanded(flex: 4, child: Text('Product',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+                Expanded(flex: 2, child: Text('Qty',
+                    textAlign: TextAlign.right,
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+                Expanded(flex: 3, child: Text('Cost (₹)',
+                    textAlign: TextAlign.right,
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+                Expanded(flex: 3, child: Text('Value (₹)',
+                    textAlign: TextAlign.right,
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+              ]),
+            ),
+            ...records.map((r) {
+              final name = r['productName'] as String? ?? '';
+              final qty = (r['qty'] as num?)?.toDouble() ?? 0;
+              final totalCost = (r['totalCost'] as num?)?.toDouble() ?? 0;
+              final totalValue = (r['totalValue'] as num?)?.toDouble() ?? 0;
+              final date = r['date'] != null
+                  ? DateTime.tryParse(r['date'] as String)
+                  : null;
+              return Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                    border:
+                        Border(bottom: BorderSide(color: Colors.grey.shade100))),
+                child: Row(children: [
+                  Expanded(flex: 4, child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(name,
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w500, fontSize: 12)),
+                      if (date != null)
+                        Text(df.format(date),
+                            style: TextStyle(
+                                color: Colors.grey.shade500, fontSize: 10)),
+                    ],
+                  )),
+                  Expanded(flex: 2, child: Text(
+                    qty.toStringAsFixed(qty.truncateToDouble() == qty ? 0 : 2),
+                    textAlign: TextAlign.right,
+                    style: const TextStyle(fontSize: 12),
+                  )),
+                  Expanded(flex: 3, child: Text(
+                    cf.format(totalCost),
+                    textAlign: TextAlign.right,
+                    style: const TextStyle(
+                        fontSize: 12, color: AppTheme.payable),
+                  )),
+                  Expanded(flex: 3, child: Text(
+                    cf.format(totalValue),
+                    textAlign: TextAlign.right,
+                    style: const TextStyle(
+                        fontSize: 12, color: AppTheme.receivable,
+                        fontWeight: FontWeight.w500),
+                  )),
+                ]),
+              );
+            }),
+          ]),
+        );
+      },
+    );
   }
 }
 

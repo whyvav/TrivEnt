@@ -273,9 +273,14 @@ class FirestoreService {
 
   // ── MANUFACTURE ──────────────────────────────────────────────
 
+  Stream<List<Map<String, dynamic>>> streamProductions() =>
+      _productions.orderBy('date', descending: true).snapshots().map(
+          (s) => s.docs.map((d) => d.data() as Map<String, dynamic>).toList());
+
   Future<void> manufacture({
     required String productId, required String productName,
     required double qty, required BomModel bom,
+    double salePrice = 0,
   }) async {
     final batch = _db.batch();
     final txDate = DateTime.now();
@@ -304,7 +309,11 @@ class FirestoreService {
     final logId = txDate.millisecondsSinceEpoch.toString();
     batch.set(_productions.doc(logId), {
       'productId': productId, 'productName': productName,
-      'qty': qty, 'totalCost': bom.totalCostPerUnit * qty,
+      'qty': qty,
+      'costPerUnit': bom.totalCostPerUnit,
+      'totalCost': bom.totalCostPerUnit * qty,
+      'salePrice': salePrice,
+      'totalValue': salePrice * qty,
       'date': txDate.toIso8601String(),
     });
 
