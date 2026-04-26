@@ -8,6 +8,8 @@ import 'package:trivent_flutter_test/screens/inventory/add_item_screen.dart';
 import 'package:trivent_flutter_test/screens/sales/add_sale_screen.dart';
 import 'package:trivent_flutter_test/screens/purchases/add_purchase_screen.dart';
 import 'package:trivent_flutter_test/screens/manufacturing/manufacture_screen.dart';
+import 'package:trivent_flutter_test/screens/parties/add_party_screen.dart';
+
 
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
@@ -106,6 +108,12 @@ class DashboardScreen extends StatelessWidget {
                     icon: Icons.add_box_outlined,
                     onTap: () => Navigator.push(context,
                         MaterialPageRoute(builder: (_) => const AddItemScreen())),
+                  ),
+                  _QuickActionButton(
+                    label: 'Add Party',
+                    icon: Icons.people_outline,
+                    onTap: () => Navigator.push(context,
+                        MaterialPageRoute(builder: (_) => const AddPartyScreen())),
                   ),
                 ]),
 

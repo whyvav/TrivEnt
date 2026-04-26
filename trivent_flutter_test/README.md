@@ -24,6 +24,7 @@ flutter run -d chrome
 After making a change, to publish to Vercel:
 flutter build web --release
 git add trivent_flutter_test/build/web
+git add .
 git commit -m "commit x comment"
 git push
 

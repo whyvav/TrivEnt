@@ -6,7 +6,8 @@ import '../../services/firestore_service.dart';
 
 class AddBomScreen extends StatefulWidget {
   final BomModel? existing;
-  const AddBomScreen({super.key, this.existing});
+  final String? initialProductId;
+  const AddBomScreen({super.key, this.existing, this.initialProductId});
   @override State<AddBomScreen> createState() => _AddBomScreenState();
 }
 
@@ -21,7 +22,11 @@ class _AddBomScreenState extends State<AddBomScreen> {
   @override
   void initState() {
     super.initState();
-    if (widget.existing != null) _populateFromExisting();
+    if (widget.existing != null) {
+      _populateFromExisting();
+    } else if (widget.initialProductId != null) {
+      _pendingProductId = widget.initialProductId;
+    }
   }
 
   void _populateFromExisting() {
