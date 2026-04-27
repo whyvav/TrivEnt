@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import '../../theme.dart';
 import '../../services/firestore_service.dart';
+import '../../services/company_service.dart';
 import '../../models/sale_model.dart';
 import '../../models/purchase_model.dart';
 import '../../models/payment_in_model.dart';
@@ -39,7 +41,8 @@ class DashboardScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Triveni Enterprises',
+                Text(
+                    context.watch<CompanyService>().activeCompany?.name ?? '',
                     style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                         fontWeight: FontWeight.bold, color: AppTheme.primary)),
                 Text(DateFormat('EEEE, d MMMM yyyy').format(DateTime.now()),

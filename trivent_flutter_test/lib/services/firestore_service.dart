@@ -9,6 +9,7 @@ import '../models/unit_model.dart';
 import '../models/stock_transaction_model.dart';
 import '../models/payment_in_model.dart';
 import '../models/payment_out_model.dart';
+import 'company_service.dart';
 
 class FirestoreService {
   static final FirestoreService _instance = FirestoreService._internal();
@@ -18,31 +19,26 @@ class FirestoreService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   static const String _userId = 'demo_user';
 
+  // ── Active-company document ──────────────────────────────────
+  DocumentReference get _companyDoc => _db
+      .collection('users')
+      .doc(_userId)
+      .collection('companies')
+      .doc(CompanyService.instance.activeCompanyId ?? '_none');
+
   // ── Collection helpers ───────────────────────────────────────
-  CollectionReference get _items =>
-      _db.collection('users').doc(_userId).collection('items');
-  CollectionReference get _boms =>
-      _db.collection('users').doc(_userId).collection('boms');
-  CollectionReference get _sales =>
-      _db.collection('users').doc(_userId).collection('sales');
-  CollectionReference get _purchases =>
-      _db.collection('users').doc(_userId).collection('purchases');
-  CollectionReference get _expenses =>
-      _db.collection('users').doc(_userId).collection('expenses');
-  CollectionReference get _parties =>
-      _db.collection('users').doc(_userId).collection('parties');
-  CollectionReference get _productions =>
-      _db.collection('users').doc(_userId).collection('productions');
-  CollectionReference get _counters =>
-      _db.collection('users').doc(_userId).collection('counters');
-  CollectionReference get _units =>
-      _db.collection('users').doc(_userId).collection('units');
-  CollectionReference get _stockTx =>
-      _db.collection('users').doc(_userId).collection('stock_transactions');
-  CollectionReference get _paymentIns =>
-      _db.collection('users').doc(_userId).collection('payment_ins');
-  CollectionReference get _paymentOuts =>
-      _db.collection('users').doc(_userId).collection('payment_outs');
+  CollectionReference get _items       => _companyDoc.collection('items');
+  CollectionReference get _boms        => _companyDoc.collection('boms');
+  CollectionReference get _sales       => _companyDoc.collection('sales');
+  CollectionReference get _purchases   => _companyDoc.collection('purchases');
+  CollectionReference get _expenses    => _companyDoc.collection('expenses');
+  CollectionReference get _parties     => _companyDoc.collection('parties');
+  CollectionReference get _productions => _companyDoc.collection('productions');
+  CollectionReference get _counters    => _companyDoc.collection('counters');
+  CollectionReference get _units       => _companyDoc.collection('units');
+  CollectionReference get _stockTx     => _companyDoc.collection('stock_transactions');
+  CollectionReference get _paymentIns  => _companyDoc.collection('payment_ins');
+  CollectionReference get _paymentOuts => _companyDoc.collection('payment_outs');
 
   // ── Invoice Numbering ────────────────────────────────────────
 

@@ -9,17 +9,18 @@ import 'package:path_provider/path_provider.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import '../models/sale_model.dart';
 import '../models/purchase_model.dart';
+import 'company_service.dart';
 
 class PdfService {
   static final PdfService _i = PdfService._();
   factory PdfService() => _i;
   PdfService._();
 
-  // ── Company details (hardcode here, move to settings later) ──
-  static const String companyName = 'Triveni Enterprises';
-  static const String companyAddress = 'Near PB Inter College, Pratapgarh City, UP - 230002';
-  static const String companyPhone = 'Phone: +91 9918513605';
-  static const String companyGST = 'GSTIN: 09BUWPS2265Q2ZA';
+  // ── Company details (read from active company) ───────────────
+  String get _companyName    => CompanyService.instance.activeCompany?.name ?? '';
+  String get _companyAddress => CompanyService.instance.activeCompany?.address ?? '';
+  String get _companyPhone   => CompanyService.instance.activeCompany?.phone ?? '';
+  String get _companyGST     => CompanyService.instance.activeCompany?.gstNumber ?? '';
 
   final cf = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
   final df = DateFormat('dd/MM/yyyy');
@@ -206,12 +207,15 @@ class PdfService {
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
         pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-          pw.Text(companyName,
+          pw.Text(_companyName,
               style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold,
                   color: PdfColors.blue900)),
-          pw.Text(companyAddress, style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700)),
-          pw.Text(companyPhone, style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700)),
-          pw.Text(companyGST, style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700)),
+          if (_companyAddress.isNotEmpty)
+            pw.Text(_companyAddress, style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700)),
+          if (_companyPhone.isNotEmpty)
+            pw.Text(_companyPhone, style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700)),
+          if (_companyGST.isNotEmpty)
+            pw.Text('GSTIN: $_companyGST', style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700)),
         ]),
         pw.Container(
           padding: const pw.EdgeInsets.symmetric(horizontal: 12, vertical: 6),

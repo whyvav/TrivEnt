@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:provider/provider.dart';
 import 'firebase_options.dart';
 import 'theme.dart';
 import 'screens/dashboard_screen.dart';
@@ -14,8 +16,9 @@ import 'screens/manufacturing/bom_screen.dart';
 import 'screens/manufacturing/manufacture_screen.dart';
 import 'screens/reports/reports_screen.dart';
 import 'screens/coming_soon_screen.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'screens/auth/login_screen.dart';
+import 'screens/company/add_edit_company_screen.dart';
+import 'services/company_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -23,23 +26,46 @@ void main() async {
   runApp(const BrickErpApp());
 }
 
+void _signOut() {
+  CompanyService.instance.reset();
+  FirebaseAuth.instance.signOut();
+}
+
 class BrickErpApp extends StatelessWidget {
   const BrickErpApp({super.key});
 
   @override
-  Widget build(BuildContext context) => MaterialApp(
-        title: 'TrivEnt',
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.lightTheme,
-        home: StreamBuilder<User?>(
-          stream: FirebaseAuth.instance.authStateChanges(),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Scaffold(body: Center(child: CircularProgressIndicator()));
-            }
-            if (snapshot.hasData) return const MainShell();
-            return const LoginScreen();
-          },
+  Widget build(BuildContext context) => ChangeNotifierProvider.value(
+        value: CompanyService.instance,
+        child: MaterialApp(
+          title: 'TrivEnt',
+          debugShowCheckedModeBanner: false,
+          theme: AppTheme.lightTheme,
+          home: StreamBuilder<User?>(
+            stream: FirebaseAuth.instance.authStateChanges(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Scaffold(body: Center(child: CircularProgressIndicator()));
+              }
+              if (!snapshot.hasData) return const LoginScreen();
+
+              // User is logged in — initialize companies, then route.
+              return FutureBuilder<void>(
+                future: CompanyService.instance.initialize(),
+                builder: (ctx, initSnap) {
+                  if (initSnap.connectionState != ConnectionState.done) {
+                    return const Scaffold(body: Center(child: CircularProgressIndicator()));
+                  }
+                  return ListenableBuilder(
+                    listenable: CompanyService.instance,
+                    builder: (ctx, _) => CompanyService.instance.hasCompanies
+                        ? const MainShell()
+                        : const _CompanySetupScreen(),
+                  );
+                },
+              );
+            },
+          ),
         ),
       );
 }
@@ -147,13 +173,15 @@ class _MainShellState extends State<MainShell> {
 
   @override
   Widget build(BuildContext context) {
+    // Watch active company so the screen area refreshes when it changes.
+    final companyId = context.watch<CompanyService>().activeCompanyId;
     final isWide = MediaQuery.of(context).size.width > 768;
-    return isWide ? _buildWide() : _buildNarrow();
+    return isWide ? _buildWide(companyId) : _buildNarrow(companyId);
   }
 
   // ── Desktop ──────────────────────────────────────────────────────
 
-  Widget _buildWide() {
+  Widget _buildWide(String? companyId) {
     return Scaffold(
       body: Row(children: [
         _DesktopSidebar(
@@ -170,16 +198,24 @@ class _MainShellState extends State<MainShell> {
               setState(() => _purchasesExpanded = !_purchasesExpanded),
         ),
         const VerticalDivider(thickness: 1, width: 1),
-        Expanded(child: _screens[_selectedIndex]),
+        Expanded(
+          child: KeyedSubtree(
+            key: ValueKey(companyId),
+            child: _screens[_selectedIndex],
+          ),
+        ),
       ]),
     );
   }
 
   // ── Mobile ───────────────────────────────────────────────────────
 
-  Widget _buildNarrow() {
+  Widget _buildNarrow(String? companyId) {
     return Scaffold(
-      body: _screens[_selectedIndex],
+      body: KeyedSubtree(
+        key: ValueKey(companyId),
+        child: _screens[_selectedIndex],
+      ),
       appBar: AppBar(
         title: Text(_screenLabels[_selectedIndex]),
         leading: Builder(
@@ -188,11 +224,11 @@ class _MainShellState extends State<MainShell> {
             onPressed: () => Scaffold.of(ctx).openDrawer(),
           ),
         ),
-        actions: [
+        actions: const [
           IconButton(
-            icon: const Icon(Icons.logout),
+            icon: Icon(Icons.logout),
             tooltip: 'Sign out',
-            onPressed: () => FirebaseAuth.instance.signOut(),
+            onPressed: _signOut,
           ),
         ],
       ),
@@ -266,22 +302,38 @@ class _DesktopSidebar extends StatelessWidget {
       width: 220,
       color: Theme.of(context).colorScheme.surface,
       child: Column(children: [
-        // Header — mirrors mobile DrawerHeader
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.fromLTRB(16, 32, 16, 20),
-          color: AppTheme.primary,
-          child: const Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(Icons.factory, color: Colors.white, size: 40),
-              SizedBox(height: 8),
-              Text('TrivEnt',
-                  style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold)),
-            ],
+        // Header — company selector
+        InkWell(
+          onTap: () => _showCompanySwitcher(context),
+          child: Consumer<CompanyService>(
+            builder: (ctx, cs, _) => Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(16, 32, 16, 16),
+              color: AppTheme.primary,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.factory, color: Colors.white, size: 36),
+                  const SizedBox(height: 6),
+                  const Text('TrivEnt',
+                      style: TextStyle(color: Colors.white70, fontSize: 11)),
+                  const SizedBox(height: 2),
+                  Row(children: [
+                    Expanded(
+                      child: Text(
+                        cs.activeCompany?.name ?? 'Select Company',
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const Icon(Icons.unfold_more, color: Colors.white70, size: 18),
+                  ]),
+                ],
+              ),
+            ),
           ),
         ),
 
@@ -387,7 +439,7 @@ class _DesktopSidebar extends StatelessWidget {
           leading: Icon(Icons.logout, color: Colors.grey.shade500, size: 20),
           title: Text('Sign Out',
               style: TextStyle(color: Colors.grey.shade500, fontSize: 14)),
-          onTap: () => FirebaseAuth.instance.signOut(),
+          onTap: _signOut,
           dense: true,
         ),
       ]),
@@ -500,17 +552,37 @@ class _AppDrawerState extends State<_AppDrawer> {
   Widget build(BuildContext context) {
     return Drawer(
       child: ListView(children: [
-        const DrawerHeader(
-          decoration: BoxDecoration(color: AppTheme.primary),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Icon(Icons.factory, color: Colors.white, size: 40),
-            SizedBox(height: 8),
-            Text('TrivEnt',
-                style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold)),
-          ]),
+        // Company selector header
+        InkWell(
+          onTap: () => _showCompanySwitcher(context),
+          child: Consumer<CompanyService>(
+            builder: (ctx, cs, _) => DrawerHeader(
+              decoration: const BoxDecoration(color: AppTheme.primary),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.factory, color: Colors.white, size: 36),
+                  const SizedBox(height: 6),
+                  const Text('TrivEnt',
+                      style: TextStyle(color: Colors.white70, fontSize: 11)),
+                  const SizedBox(height: 2),
+                  Row(children: [
+                    Expanded(
+                      child: Text(
+                        cs.activeCompany?.name ?? 'Select Company',
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const Icon(Icons.unfold_more, color: Colors.white70, size: 18),
+                  ]),
+                ],
+              ),
+            ),
+          ),
         ),
 
         _drawerItem(_idxDashboard, Icons.dashboard_outlined, Icons.dashboard, 'Dashboard'),
@@ -601,7 +673,7 @@ class _AppDrawerState extends State<_AppDrawer> {
         ListTile(
           leading: const Icon(Icons.logout, color: Colors.red),
           title: const Text('Sign Out', style: TextStyle(color: Colors.red)),
-          onTap: () => FirebaseAuth.instance.signOut(),
+          onTap: _signOut,
         ),
       ]),
     );
@@ -664,6 +736,217 @@ class _AppDrawerState extends State<_AppDrawer> {
       selected: sel,
       selectedTileColor: AppTheme.primary.withValues(alpha: 0.08),
       onTap: () => widget.onSelect(index),
+    );
+  }
+}
+
+// ── Company switcher bottom sheet ──────────────────────────────────
+
+void _showCompanySwitcher(BuildContext context) {
+  showModalBottomSheet<void>(
+    context: context,
+    builder: (sheetCtx) => Consumer<CompanyService>(
+      builder: (ctx, cs, _) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+              child: Row(
+                children: [
+                  Text('Companies',
+                      style: Theme.of(ctx)
+                          .textTheme
+                          .titleMedium
+                          ?.copyWith(fontWeight: FontWeight.bold)),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(sheetCtx),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            ...cs.companies.map((c) {
+              final isActive = c.id == cs.activeCompanyId;
+              return ListTile(
+                leading: Icon(
+                  isActive ? Icons.check_circle : Icons.business_outlined,
+                  color: isActive ? AppTheme.primary : Colors.grey.shade600,
+                ),
+                title: Text(c.name,
+                    style: TextStyle(
+                        fontWeight: isActive ? FontWeight.w600 : FontWeight.normal)),
+                subtitle: c.address.isNotEmpty
+                    ? Text(c.address,
+                        maxLines: 1, overflow: TextOverflow.ellipsis)
+                    : null,
+                trailing: IconButton(
+                  icon: const Icon(Icons.edit_outlined, size: 20),
+                  tooltip: 'Edit',
+                  onPressed: () {
+                    Navigator.pop(sheetCtx);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => AddEditCompanyScreen(company: c)),
+                    );
+                  },
+                ),
+                onTap: isActive
+                    ? null
+                    : () {
+                        cs.setActiveCompany(c.id);
+                        Navigator.pop(sheetCtx);
+                      },
+              );
+            }),
+            const Divider(height: 1),
+            ListTile(
+              leading: const Icon(Icons.add_business_outlined),
+              title: const Text('Add Company'),
+              onTap: () {
+                Navigator.pop(sheetCtx);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => const AddEditCompanyScreen()),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+// ── First-time company setup screen ────────────────────────────────
+
+class _CompanySetupScreen extends StatefulWidget {
+  const _CompanySetupScreen();
+  @override
+  State<_CompanySetupScreen> createState() => _CompanySetupScreenState();
+}
+
+class _CompanySetupScreenState extends State<_CompanySetupScreen> {
+  bool _migrating = false;
+
+  Future<void> _migrateExisting() async {
+    setState(() => _migrating = true);
+    try {
+      final company = await CompanyService.instance.addCompany(
+        name: 'Triveni Enterprises',
+        address: 'Near PB Inter College, Pratapgarh City, UP - 230002',
+        phone: '+91 9918513605',
+        gstNumber: '09BUWPS2265Q2ZA',
+      );
+      await CompanyService.instance.migrateOldData(company.id);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Migration failed: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _migrating = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = context.watch<CompanyService>();
+    return Scaffold(
+      body: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(32),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 440),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.factory, size: 72, color: AppTheme.primary),
+                const SizedBox(height: 20),
+                Text('Welcome to TrivEnt',
+                    style: Theme.of(context)
+                        .textTheme
+                        .headlineMedium
+                        ?.copyWith(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                Text(
+                  'Set up a company to start managing your business.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.grey.shade600, fontSize: 15),
+                ),
+                const SizedBox(height: 36),
+
+                // Migration card — shown when old data exists
+                if (cs.migrationAvailable) ...[
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Row(children: [
+                            const Icon(Icons.info_outline, color: AppTheme.primary),
+                            const SizedBox(width: 8),
+                            Text('Existing data found',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .titleSmall
+                                    ?.copyWith(fontWeight: FontWeight.bold)),
+                          ]),
+                          const SizedBox(height: 8),
+                          const Text(
+                            'Data from Triveni Enterprises was found. '
+                            'Migrate it now to keep your existing records.',
+                          ),
+                          const SizedBox(height: 14),
+                          FilledButton.icon(
+                            onPressed: _migrating ? null : _migrateExisting,
+                            icon: _migrating
+                                ? const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2, color: Colors.white))
+                                : const Icon(Icons.drive_file_move_outlined),
+                            label: Text(_migrating
+                                ? 'Migrating data…'
+                                : 'Migrate as Triveni Enterprises'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text('— or start fresh —',
+                      style: TextStyle(color: Colors.grey.shade500)),
+                  const SizedBox(height: 12),
+                ],
+
+                OutlinedButton.icon(
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const AddEditCompanyScreen()),
+                  ),
+                  icon: const Icon(Icons.add_business_outlined),
+                  label: const Text('Create New Company'),
+                ),
+
+                const SizedBox(height: 24),
+                TextButton.icon(
+                  onPressed: _signOut,
+                  icon: const Icon(Icons.logout, size: 18),
+                  label: const Text('Sign Out'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
