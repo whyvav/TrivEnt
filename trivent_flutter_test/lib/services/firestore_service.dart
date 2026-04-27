@@ -358,15 +358,19 @@ class FirestoreService {
 
   Stream<List<Map<String, dynamic>>> streamProductions() =>
       _productions.orderBy('date', descending: true).snapshots().map(
-          (s) => s.docs.map((d) => d.data() as Map<String, dynamic>).toList());
+          (s) => s.docs.map((d) => {'id': d.id, ...d.data() as Map<String, dynamic>}).toList());
 
   Future<void> manufacture({
     required String productId, required String productName,
     required double qty, required BomModel bom,
     double salePrice = 0,
+    DateTime? date,
   }) async {
     final batch = _db.batch();
-    final txDate = DateTime.now();
+    final now = DateTime.now();
+    final txDate = date != null
+        ? DateTime(date.year, date.month, date.day, now.hour, now.minute, now.second)
+        : now;
 
     for (final m in bom.materials) {
       final ref = _items.doc(m.materialId);
@@ -389,7 +393,7 @@ class FirestoreService {
       batch.update(prodRef, {'stockQty': current.stockQty + qty});
     }
 
-    final logId = txDate.millisecondsSinceEpoch.toString();
+    final logId = now.millisecondsSinceEpoch.toString();
     batch.set(_productions.doc(logId), {
       'productId': productId, 'productName': productName,
       'qty': qty,
@@ -420,6 +424,33 @@ class FirestoreService {
       referenceId: logId, notes: 'Manufactured $qty units',
     ).toMap());
 
+    await batch.commit();
+  }
+
+  Future<void> updateManufactureDate(String recordId, DateTime newDate) {
+    final now = DateTime.now();
+    final combined = DateTime(newDate.year, newDate.month, newDate.day, now.hour, now.minute);
+    return _productions.doc(recordId).update({'date': combined.toIso8601String()});
+  }
+
+  Future<void> deleteManufactureRecord(String recordId) async {
+    final batch = _db.batch();
+    final txSnap = await _stockTx.where('referenceId', isEqualTo: recordId).get();
+    for (final txDoc in txSnap.docs) {
+      final tx = txDoc.data() as Map<String, dynamic>;
+      final itemId = tx['itemId'] as String?;
+      final qty = (tx['quantity'] as num?)?.toDouble() ?? 0;
+      if (itemId != null) {
+        final itemRef = _items.doc(itemId);
+        final itemSnap = await itemRef.get();
+        if (itemSnap.exists) {
+          final current = ItemModel.fromMap(itemSnap.data() as Map<String, dynamic>);
+          batch.update(itemRef, {'stockQty': current.stockQty - qty});
+        }
+      }
+      batch.delete(txDoc.reference);
+    }
+    batch.delete(_productions.doc(recordId));
     await batch.commit();
   }
 

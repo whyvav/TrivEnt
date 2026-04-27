@@ -263,30 +263,34 @@ class _DesktopSidebar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 96,
+      width: 220,
       color: Theme.of(context).colorScheme.surface,
       child: Column(children: [
-        // Branding
-        const Padding(
-          padding: EdgeInsets.symmetric(vertical: 16),
-          child: Column(children: [
-            Icon(Icons.factory, color: AppTheme.primary, size: 32),
-            SizedBox(height: 4),
-            Text('TrivEnt',
-                style: TextStyle(
-                    color: AppTheme.primary,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 12)),
-          ]),
+        // Header — mirrors mobile DrawerHeader
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.fromLTRB(16, 32, 16, 20),
+          color: AppTheme.primary,
+          child: const Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.factory, color: Colors.white, size: 40),
+              SizedBox(height: 8),
+              Text('TrivEnt',
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold)),
+            ],
+          ),
         ),
 
         // Nav items
         Expanded(
           child: ListView(
-            padding: const EdgeInsets.symmetric(horizontal: 6),
+            padding: EdgeInsets.zero,
             children: [
               _item(Icons.dashboard_outlined, Icons.dashboard, 'Dashboard', _idxDashboard),
-              const SizedBox(height: 4),
 
               // Production group
               _groupHeader(
@@ -313,8 +317,6 @@ class _DesktopSidebar extends StatelessWidget {
                     : const SizedBox.shrink(),
               ),
 
-              const SizedBox(height: 4),
-
               // Sales group
               _groupHeader(
                 icon: Icons.receipt_long_outlined,
@@ -330,22 +332,20 @@ class _DesktopSidebar extends StatelessWidget {
                 child: salesExpanded
                     ? Column(children: [
                         _subItem(Icons.receipt_long_outlined, Icons.receipt_long,
-                            'Invoices', _idxSales),
+                            'Sale Invoices', _idxSales),
                         _subItem(Icons.move_to_inbox_outlined, Icons.move_to_inbox,
-                            'Pay In', _idxPaymentIn),
+                            'Payment In', _idxPaymentIn),
                         _subItem(Icons.assignment_return_outlined, Icons.assignment_return,
                             'Sale Return', _idxSaleReturn),
                         _subItem(Icons.request_quote_outlined, Icons.request_quote,
-                            'Estimate', _idxEstimate),
+                            'Estimate / Quotation', _idxEstimate),
                         _subItem(Icons.shopping_cart_outlined, Icons.shopping_cart,
                             'Sale Order', _idxSaleOrder),
                         _subItem(Icons.local_shipping_outlined, Icons.local_shipping,
-                            'Challan', _idxDeliveryChallan),
+                            'Delivery Challan', _idxDeliveryChallan),
                       ])
                     : const SizedBox.shrink(),
               ),
-
-              const SizedBox(height: 4),
 
               // Purchases group
               _groupHeader(
@@ -362,18 +362,17 @@ class _DesktopSidebar extends StatelessWidget {
                 child: purchasesExpanded
                     ? Column(children: [
                         _subItem(Icons.shopping_basket_outlined, Icons.shopping_basket,
-                            'Bills', _idxPurchases),
+                            'Purchase Bills', _idxPurchases),
                         _subItem(Icons.outbox_outlined, Icons.outbox,
-                            'Pay Out', _idxPaymentOut),
+                            'Payment Out', _idxPaymentOut),
                         _subItem(Icons.keyboard_return_outlined, Icons.keyboard_return,
-                            'Pur. Return', _idxPurchaseReturn),
+                            'Purchase Return', _idxPurchaseReturn),
                         _subItem(Icons.add_shopping_cart_outlined, Icons.add_shopping_cart,
-                            'Pur. Order', _idxPurchaseOrder),
+                            'Purchase Order', _idxPurchaseOrder),
                       ])
                     : const SizedBox.shrink(),
               ),
 
-              const SizedBox(height: 4),
               _item(Icons.account_balance_wallet_outlined, Icons.account_balance_wallet,
                   'Expenses', _idxExpenses),
               _item(Icons.people_outline, Icons.people, 'Parties', _idxParties),
@@ -384,13 +383,12 @@ class _DesktopSidebar extends StatelessWidget {
 
         // Logout
         const Divider(height: 1),
-        Padding(
-          padding: const EdgeInsets.only(bottom: 8, top: 4),
-          child: IconButton(
-            icon: Icon(Icons.logout, size: 20, color: Colors.grey.shade500),
-            tooltip: 'Sign out',
-            onPressed: () => FirebaseAuth.instance.signOut(),
-          ),
+        ListTile(
+          leading: Icon(Icons.logout, color: Colors.grey.shade500, size: 20),
+          title: Text('Sign Out',
+              style: TextStyle(color: Colors.grey.shade500, fontSize: 14)),
+          onTap: () => FirebaseAuth.instance.signOut(),
+          dense: true,
         ),
       ]),
     );
@@ -398,34 +396,16 @@ class _DesktopSidebar extends StatelessWidget {
 
   Widget _item(IconData icon, IconData selectedIcon, String label, int index) {
     final sel = selectedIndex == index;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: InkWell(
-        onTap: () => onSelect(index),
-        borderRadius: BorderRadius.circular(12),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          decoration: sel
-              ? BoxDecoration(
-                  color: AppTheme.primary.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(12),
-                )
-              : null,
-          child: Column(children: [
-            Icon(sel ? selectedIcon : icon,
-                color: sel ? AppTheme.primary : Colors.grey.shade600, size: 22),
-            const SizedBox(height: 4),
-            Text(label,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 10,
-                  color: sel ? AppTheme.primary : Colors.grey.shade600,
-                  fontWeight: sel ? FontWeight.w600 : FontWeight.normal,
-                )),
-          ]),
-        ),
-      ),
+    return ListTile(
+      leading: Icon(sel ? selectedIcon : icon,
+          color: sel ? AppTheme.primary : Colors.grey.shade700, size: 22),
+      title: Text(label,
+          style: TextStyle(
+              color: sel ? AppTheme.primary : null,
+              fontWeight: sel ? FontWeight.w600 : FontWeight.normal)),
+      selected: sel,
+      selectedTileColor: AppTheme.primary.withValues(alpha: 0.08),
+      onTap: () => onSelect(index),
     );
   }
 
@@ -437,83 +417,41 @@ class _DesktopSidebar extends StatelessWidget {
     required bool isExpanded,
     required VoidCallback onTap,
   }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          decoration: isActive
-              ? BoxDecoration(
-                  color: AppTheme.primary.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(12),
-                )
-              : null,
-          child: Column(children: [
-            Icon(
-              isActive ? selectedIcon : icon,
-              color: isActive ? AppTheme.primary : Colors.grey.shade600,
-              size: 22,
-            ),
-            const SizedBox(height: 4),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Flexible(child: Text(label,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: isActive ? AppTheme.primary : Colors.grey.shade600,
-                      fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
-                    ))),
-                AnimatedRotation(
-                  turns: isExpanded ? 0.5 : 0.0,
-                  duration: const Duration(milliseconds: 180),
-                  child: Icon(Icons.expand_more,
-                      size: 13,
-                      color: isActive ? AppTheme.primary : Colors.grey.shade600),
-                ),
-              ],
-            ),
-          ]),
-        ),
+    return ListTile(
+      leading: Icon(isActive ? selectedIcon : icon,
+          color: isActive ? AppTheme.primary : Colors.grey.shade700, size: 22),
+      title: Text(label,
+          style: TextStyle(
+              color: isActive ? AppTheme.primary : null,
+              fontWeight: isActive ? FontWeight.w600 : FontWeight.normal)),
+      trailing: AnimatedRotation(
+        turns: isExpanded ? 0.5 : 0.0,
+        duration: const Duration(milliseconds: 180),
+        child: Icon(Icons.expand_more,
+            size: 20,
+            color: isActive ? AppTheme.primary : Colors.grey.shade600),
       ),
+      selected: isActive,
+      selectedTileColor: AppTheme.primary.withValues(alpha: 0.08),
+      onTap: onTap,
     );
   }
 
   Widget _subItem(IconData icon, IconData selectedIcon, String label, int index) {
     final sel = selectedIndex == index;
-    return Padding(
-      padding: const EdgeInsets.only(left: 6, right: 0, top: 1, bottom: 1),
-      child: InkWell(
-        onTap: () => onSelect(index),
-        borderRadius: BorderRadius.circular(10),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          decoration: sel
-              ? BoxDecoration(
-                  color: AppTheme.primary.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(10),
-                )
-              : null,
-          child: Column(children: [
-            Icon(sel ? selectedIcon : icon,
-                color: sel ? AppTheme.primary : Colors.grey.shade500, size: 18),
-            const SizedBox(height: 3),
-            Text(label,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 9,
-                  color: sel ? AppTheme.primary : Colors.grey.shade500,
-                  fontWeight: sel ? FontWeight.w600 : FontWeight.normal,
-                )),
-          ]),
-        ),
-      ),
+    return ListTile(
+      contentPadding: const EdgeInsets.only(left: 56, right: 16),
+      dense: true,
+      leading: Icon(sel ? selectedIcon : icon,
+          color: sel ? AppTheme.primary : Colors.grey.shade600, size: 20),
+      title: Text(label,
+          style: TextStyle(
+              fontSize: 14,
+              color: sel ? AppTheme.primary : Colors.grey.shade700,
+              fontWeight: sel ? FontWeight.w600 : FontWeight.normal)),
+      selected: sel,
+      selectedTileColor: AppTheme.primary.withValues(alpha: 0.08),
+      onTap: () => onSelect(index),
     );
   }
 }

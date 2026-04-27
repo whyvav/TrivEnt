@@ -19,6 +19,7 @@ class _ManufactureScreenState extends State<ManufactureScreen> {
   bool _bomLoading = false;
   bool _bomChecked = false;
   final _qtyController = TextEditingController();
+  DateTime _selectedDate = DateTime.now();
   bool _loading = false;
 
   @override
@@ -101,6 +102,28 @@ class _ManufactureScreenState extends State<ManufactureScreen> {
                 suffixText: 'units',
               ),
               keyboardType: TextInputType.number,
+            ),
+            const SizedBox(height: 16),
+
+            InkWell(
+              onTap: () async {
+                final picked = await showDatePicker(
+                  context: context,
+                  initialDate: _selectedDate,
+                  firstDate: DateTime(2020),
+                  lastDate: DateTime.now(),
+                );
+                if (picked != null) setState(() => _selectedDate = picked);
+              },
+              borderRadius: BorderRadius.circular(8),
+              child: InputDecorator(
+                decoration: InputDecoration(
+                  labelText: 'Date of Manufacture',
+                  suffixIcon: const Icon(Icons.calendar_today, size: 20),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                child: Text(DateFormat('dd MMM yyyy').format(_selectedDate)),
+              ),
             ),
             const SizedBox(height: 24),
 
@@ -231,6 +254,7 @@ class _ManufactureScreenState extends State<ManufactureScreen> {
         qty: qty,
         bom: bom,
         salePrice: _selectedProduct!.salePrice,
+        date: _selectedDate,
       );
 
       if (mounted) {
@@ -255,6 +279,7 @@ class _ManufactureScreenState extends State<ManufactureScreen> {
                     _selectedBom = null;
                     _bomChecked = false;
                     _qtyController.clear();
+                    _selectedDate = DateTime.now();
                   });
                 },
                 child: const Text('OK'),
@@ -281,6 +306,61 @@ class _ManufactureScreenState extends State<ManufactureScreen> {
 class _ProductionHistory extends StatelessWidget {
   final FirestoreService svc;
   const _ProductionHistory({required this.svc});
+
+  Future<void> _editDate(BuildContext context, String id, DateTime current) async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: current,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now(),
+    );
+    if (picked != null) {
+      try {
+        await svc.updateManufactureDate(id, picked);
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
+        }
+      }
+    }
+  }
+
+  void _confirmDelete(BuildContext context, String id, String name, double qty) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Delete Production Record?'),
+        content: Text(
+          'This will reverse all stock changes for '
+          '${qty.toStringAsFixed(qty.truncateToDouble() == qty ? 0 : 2)} units of $name.\n\n'
+          'This cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel')),
+          TextButton(
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            onPressed: () async {
+              Navigator.pop(context);
+              try {
+                await svc.deleteManufactureRecord(id);
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                      content: Text('Error: $e'),
+                      backgroundColor: Colors.red,
+                      duration: const Duration(seconds: 5)));
+                }
+              }
+            },
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -328,9 +408,11 @@ class _ProductionHistory extends StatelessWidget {
                 Expanded(flex: 3, child: Text('Value (₹)',
                     textAlign: TextAlign.right,
                     style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+                SizedBox(width: 32),
               ]),
             ),
             ...records.map((r) {
+              final id = r['id'] as String? ?? '';
               final name = r['productName'] as String? ?? '';
               final qty = (r['qty'] as num?)?.toDouble() ?? 0;
               final totalCost = (r['totalCost'] as num?)?.toDouble() ?? 0;
@@ -375,6 +457,41 @@ class _ProductionHistory extends StatelessWidget {
                         fontSize: 12, color: AppTheme.receivable,
                         fontWeight: FontWeight.w500),
                   )),
+                  SizedBox(
+                    width: 32,
+                    child: PopupMenuButton<String>(
+                      icon: Icon(Icons.more_vert,
+                          size: 18, color: Colors.grey.shade500),
+                      padding: EdgeInsets.zero,
+                      itemBuilder: (_) => [
+                        const PopupMenuItem(
+                          value: 'edit',
+                          child: Row(children: [
+                            Icon(Icons.edit_calendar_outlined, size: 16),
+                            SizedBox(width: 8),
+                            Text('Edit Date'),
+                          ]),
+                        ),
+                        const PopupMenuItem(
+                          value: 'delete',
+                          child: Row(children: [
+                            Icon(Icons.delete_outline,
+                                size: 16, color: Colors.red),
+                            SizedBox(width: 8),
+                            Text('Delete',
+                                style: TextStyle(color: Colors.red)),
+                          ]),
+                        ),
+                      ],
+                      onSelected: (value) {
+                        if (value == 'edit') {
+                          _editDate(ctx, id, date ?? DateTime.now());
+                        } else if (value == 'delete') {
+                          _confirmDelete(ctx, id, name, qty);
+                        }
+                      },
+                    ),
+                  ),
                 ]),
               );
             }),
