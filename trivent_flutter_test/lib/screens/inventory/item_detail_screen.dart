@@ -5,17 +5,56 @@ import '../../models/stock_transaction_model.dart';
 import '../../services/firestore_service.dart';
 import '../../theme.dart';
 import 'add_item_screen.dart';
+import '../manufacturing/manufacture_detail_screen.dart';
 
 class ItemDetailScreen extends StatelessWidget {
   final ItemModel item;
   const ItemDetailScreen({super.key, required this.item});
+
+  // ── Price helpers ─────────────────────────────────────────────
+
+  /// The "reference price" for this item used in the info card and value column:
+  ///   Product      → Sale Price
+  ///   Raw Material → Purchase Price
+  ///   Other        → Sale Price if set, else Purchase Price
+  double get _relevantPrice {
+    if (item.category == 'product') return item.salePrice;
+    if (item.category == 'raw_material') return item.purchasePrice;
+    return item.salePrice > 0 ? item.salePrice : item.purchasePrice;
+  }
+
+  String get _priceLabel {
+    if (item.category == 'product') return 'Sale Price';
+    if (item.category == 'raw_material') return 'Purchase Price';
+    return item.salePrice > 0 ? 'Sale Price' : 'Purchase Price';
+  }
+
+  /// Monetary value to display for a stock transaction row.
+  ///
+  /// For transactional records (Sale, Purchase, Opening Stock, Adjusted)
+  /// we respect the stored pricePerUnit — these are actual prices at the
+  /// time of the event and may differ from the item's current price.
+  ///
+  /// For derived records (Manufactured, Consumed, Deleted) we normalise
+  /// against the item's _relevantPrice so all rows are comparable and old
+  /// Manufactured records (which stored costPerUnit) display correctly.
+  double _txValue(StockTransactionModel tx) {
+    switch (tx.type) {
+      case 'Sale':
+      case 'Purchase':
+      case 'Opening Stock':
+      case 'Adjusted':
+        return tx.value.abs(); // stored price is intentional / historically accurate
+      default:
+        return tx.quantity.abs() * _relevantPrice;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final svc = FirestoreService();
     final cf = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
     final df = DateFormat('dd MMM yyyy, hh:mm a');
-    final unitPrice = item.category == 'product' ? item.salePrice : item.purchasePrice;
 
     return Scaffold(
       appBar: AppBar(
@@ -100,9 +139,8 @@ class ItemDetailScreen extends StatelessWidget {
                 _InfoCell('Stock', '${item.stockQty} ${item.primaryUnit}',
                     color: item.stockQty <= item.minStockAlert && item.minStockAlert > 0
                         ? AppTheme.payable : AppTheme.receivable),
-                _InfoCell('${item.category == 'product' ? 'Sale' : 'Purchase'} Price',
-                    cf.format(unitPrice)),
-                _InfoCell('Stock Value', cf.format(item.stockQty * unitPrice),
+                _InfoCell(_priceLabel, cf.format(_relevantPrice)),
+                _InfoCell('Stock Value', cf.format(item.stockQty * _relevantPrice),
                     bold: true),
                 _InfoCell('Tax', '${item.taxPercent}%'),
                 if (item.secondaryUnit != null)
@@ -177,39 +215,51 @@ class ItemDetailScreen extends StatelessWidget {
                   ),
                   ...txList.map((tx) {
                     final isIn = tx.quantity > 0;
-                    return Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                      decoration: BoxDecoration(
-                          border: Border(bottom: BorderSide(color: Colors.grey.shade100))),
-                      child: Row(children: [
-                        Expanded(flex: 3, child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(tx.type,
-                                style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 12)),
-                            Text(df.format(tx.date),
-                                style: TextStyle(color: Colors.grey.shade500, fontSize: 10)),
-                            if (tx.referenceNo != null)
-                              Text('Ref: ${tx.referenceNo}',
+                    final isMfg = tx.type == 'Manufactured' && tx.referenceId != null;
+                    return InkWell(
+                      onTap: isMfg
+                          ? () => _navigateToMfgRecord(context, svc, tx.referenceId!)
+                          : null,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        decoration: BoxDecoration(
+                            border: Border(bottom: BorderSide(color: Colors.grey.shade100))),
+                        child: Row(children: [
+                          Expanded(flex: 3, child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(children: [
+                                Text(tx.type,
+                                    style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 12)),
+                                if (isMfg) ...[
+                                  const SizedBox(width: 4),
+                                  Icon(Icons.chevron_right, size: 14, color: Colors.grey.shade400),
+                                ],
+                              ]),
+                              Text(df.format(tx.date),
                                   style: TextStyle(color: Colors.grey.shade500, fontSize: 10)),
-                            if (tx.notes != null)
-                              Text(tx.notes!,
-                                  style: TextStyle(color: Colors.grey.shade500, fontSize: 10)),
-                          ],
-                        )),
-                        Expanded(flex: 2, child: Text(
-                          '${isIn ? '+' : ''}${tx.quantity.toStringAsFixed(2)} ${item.primaryUnit}',
-                          textAlign: TextAlign.right,
-                          style: TextStyle(
-                              color: isIn ? AppTheme.receivable : AppTheme.payable,
-                              fontWeight: FontWeight.w500, fontSize: 12),
-                        )),
-                        Expanded(flex: 2, child: Text(
-                          cf.format(tx.value.abs()),
-                          textAlign: TextAlign.right,
-                          style: const TextStyle(fontSize: 12),
-                        )),
-                      ]),
+                              if (tx.referenceNo != null)
+                                Text('Ref: ${tx.referenceNo}',
+                                    style: TextStyle(color: Colors.grey.shade500, fontSize: 10)),
+                              if (tx.notes != null)
+                                Text(tx.notes!,
+                                    style: TextStyle(color: Colors.grey.shade500, fontSize: 10)),
+                            ],
+                          )),
+                          Expanded(flex: 2, child: Text(
+                            '${isIn ? '+' : ''}${tx.quantity.toStringAsFixed(2)} ${item.primaryUnit}',
+                            textAlign: TextAlign.right,
+                            style: TextStyle(
+                                color: isIn ? AppTheme.receivable : AppTheme.payable,
+                                fontWeight: FontWeight.w500, fontSize: 12),
+                          )),
+                          Expanded(flex: 2, child: Text(
+                            cf.format(_txValue(tx)),
+                            textAlign: TextAlign.right,
+                            style: const TextStyle(fontSize: 12),
+                          )),
+                        ]),
+                      ),
                     );
                   }).toList(),
                 ]),
@@ -222,9 +272,22 @@ class ItemDetailScreen extends StatelessWidget {
     );
   }
 
+  Future<void> _navigateToMfgRecord(
+      BuildContext context, FirestoreService svc, String recordId) async {
+    final record = await svc.getManufactureRecord(recordId);
+    if (record != null && context.mounted) {
+      Navigator.push(context,
+          MaterialPageRoute(builder: (_) => ManufactureDetailScreen(record: record)));
+    }
+  }
+
   Future<void> _showAdjustStock(BuildContext context, FirestoreService svc) async {
     final qtyCtrl = TextEditingController();
-    final priceCtrl = TextEditingController(text: item.stockAtPrice.toString());
+    // Pre-fill with the item's relevant price so the adjustment value is meaningful.
+    // The user can override for special cases (e.g. write-off at a different value).
+    final prefillPrice = _relevantPrice > 0 ? _relevantPrice : item.stockAtPrice;
+    final priceCtrl = TextEditingController(
+        text: prefillPrice > 0 ? prefillPrice.toStringAsFixed(2) : '');
     final notesCtrl = TextEditingController();
     DateTime adjDate = DateTime.now();
 
@@ -257,8 +320,8 @@ class ItemDetailScreen extends StatelessWidget {
               const SizedBox(width: 10),
               Expanded(child: TextFormField(
                 controller: priceCtrl,
-                decoration: const InputDecoration(
-                    labelText: 'Price / Unit ₹', prefixText: '₹'),
+                decoration: InputDecoration(
+                    labelText: '$_priceLabel / Unit', prefixText: '₹'),
                 keyboardType: TextInputType.number,
               )),
             ]),

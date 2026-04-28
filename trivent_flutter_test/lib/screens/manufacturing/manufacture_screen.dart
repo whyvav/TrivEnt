@@ -6,6 +6,7 @@ import '../../models/bom_model.dart';
 import '../../theme.dart';
 import '../inventory/add_item_screen.dart';
 import 'add_bom_screen.dart';
+import 'manufacture_detail_screen.dart';
 
 class ManufactureScreen extends StatefulWidget {
   const ManufactureScreen({super.key});
@@ -326,6 +327,75 @@ class _ProductionHistory extends StatelessWidget {
     }
   }
 
+  Future<void> _editQty(BuildContext context, Map<String, dynamic> record) async {
+    final id = record['id'] as String? ?? '';
+    final name = record['productName'] as String? ?? '';
+    final currentQty = (record['qty'] as num?)?.toDouble() ?? 0;
+    final salePrice = (record['salePrice'] as num?)?.toDouble() ?? 0;
+    final costPerUnit = (record['costPerUnit'] as num?)?.toDouble() ?? 0;
+    String fmtQty(double q) =>
+        q.truncateToDouble() == q ? q.toStringAsFixed(0) : q.toStringAsFixed(2);
+
+    final controller = TextEditingController(text: fmtQty(currentQty));
+    final newQty = await showDialog<double>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Edit Quantity'),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          Text(name, style: const TextStyle(fontWeight: FontWeight.w500)),
+          const SizedBox(height: 12),
+          TextFormField(
+            controller: controller,
+            autofocus: true,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: const InputDecoration(
+              labelText: 'New Quantity',
+              suffixText: 'units',
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Stock for product and raw materials will be adjusted automatically.',
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+          ),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () {
+              final v = double.tryParse(controller.text) ?? 0;
+              if (v > 0) Navigator.pop(ctx, v);
+            },
+            child: const Text('Update'),
+          ),
+        ],
+      ),
+    );
+
+    if (newQty != null && newQty != currentQty && context.mounted) {
+      try {
+        await svc.updateManufactureQty(
+          recordId: id,
+          oldQty: currentQty,
+          newQty: newQty,
+          salePrice: salePrice,
+          costPerUnit: costPerUnit,
+        );
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Quantity updated and stocks adjusted')));
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content: Text('Error: $e'),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 5)));
+        }
+      }
+    }
+  }
+
   void _confirmDelete(BuildContext context, String id, String name, double qty) {
     showDialog(
       context: context,
@@ -420,79 +490,94 @@ class _ProductionHistory extends StatelessWidget {
               final date = r['date'] != null
                   ? DateTime.tryParse(r['date'] as String)
                   : null;
-              return Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                decoration: BoxDecoration(
-                    border:
-                        Border(bottom: BorderSide(color: Colors.grey.shade100))),
-                child: Row(children: [
-                  Expanded(flex: 4, child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(name,
-                          style: const TextStyle(
-                              fontWeight: FontWeight.w500, fontSize: 12)),
-                      if (date != null)
-                        Text(df.format(date),
-                            style: TextStyle(
-                                color: Colors.grey.shade500, fontSize: 10)),
-                    ],
-                  )),
-                  Expanded(flex: 2, child: Text(
-                    qty.toStringAsFixed(qty.truncateToDouble() == qty ? 0 : 2),
-                    textAlign: TextAlign.right,
-                    style: const TextStyle(fontSize: 12),
-                  )),
-                  Expanded(flex: 3, child: Text(
-                    cf.format(totalCost),
-                    textAlign: TextAlign.right,
-                    style: const TextStyle(
-                        fontSize: 12, color: AppTheme.payable),
-                  )),
-                  Expanded(flex: 3, child: Text(
-                    cf.format(totalValue),
-                    textAlign: TextAlign.right,
-                    style: const TextStyle(
-                        fontSize: 12, color: AppTheme.receivable,
-                        fontWeight: FontWeight.w500),
-                  )),
-                  SizedBox(
-                    width: 32,
-                    child: PopupMenuButton<String>(
-                      icon: Icon(Icons.more_vert,
-                          size: 18, color: Colors.grey.shade500),
-                      padding: EdgeInsets.zero,
-                      itemBuilder: (_) => [
-                        const PopupMenuItem(
-                          value: 'edit',
-                          child: Row(children: [
-                            Icon(Icons.edit_calendar_outlined, size: 16),
-                            SizedBox(width: 8),
-                            Text('Edit Date'),
-                          ]),
-                        ),
-                        const PopupMenuItem(
-                          value: 'delete',
-                          child: Row(children: [
-                            Icon(Icons.delete_outline,
-                                size: 16, color: Colors.red),
-                            SizedBox(width: 8),
-                            Text('Delete',
-                                style: TextStyle(color: Colors.red)),
-                          ]),
-                        ),
+              return InkWell(
+                onTap: () => Navigator.push(ctx,
+                    MaterialPageRoute(
+                        builder: (_) => ManufactureDetailScreen(record: r))),
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                      border:
+                          Border(bottom: BorderSide(color: Colors.grey.shade100))),
+                  child: Row(children: [
+                    Expanded(flex: 4, child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(name,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w500, fontSize: 12)),
+                        if (date != null)
+                          Text(df.format(date),
+                              style: TextStyle(
+                                  color: Colors.grey.shade500, fontSize: 10)),
                       ],
-                      onSelected: (value) {
-                        if (value == 'edit') {
-                          _editDate(ctx, id, date ?? DateTime.now());
-                        } else if (value == 'delete') {
-                          _confirmDelete(ctx, id, name, qty);
-                        }
-                      },
+                    )),
+                    Expanded(flex: 2, child: Text(
+                      qty.toStringAsFixed(qty.truncateToDouble() == qty ? 0 : 2),
+                      textAlign: TextAlign.right,
+                      style: const TextStyle(fontSize: 12),
+                    )),
+                    Expanded(flex: 3, child: Text(
+                      cf.format(totalCost),
+                      textAlign: TextAlign.right,
+                      style: const TextStyle(
+                          fontSize: 12, color: AppTheme.payable),
+                    )),
+                    Expanded(flex: 3, child: Text(
+                      cf.format(totalValue),
+                      textAlign: TextAlign.right,
+                      style: const TextStyle(
+                          fontSize: 12, color: AppTheme.receivable,
+                          fontWeight: FontWeight.w500),
+                    )),
+                    SizedBox(
+                      width: 32,
+                      child: PopupMenuButton<String>(
+                        icon: Icon(Icons.more_vert,
+                            size: 18, color: Colors.grey.shade500),
+                        padding: EdgeInsets.zero,
+                        itemBuilder: (_) => [
+                          const PopupMenuItem(
+                            value: 'edit_date',
+                            child: Row(children: [
+                              Icon(Icons.edit_calendar_outlined, size: 16),
+                              SizedBox(width: 8),
+                              Text('Edit Date'),
+                            ]),
+                          ),
+                          const PopupMenuItem(
+                            value: 'edit_qty',
+                            child: Row(children: [
+                              Icon(Icons.edit_outlined, size: 16),
+                              SizedBox(width: 8),
+                              Text('Edit Quantity'),
+                            ]),
+                          ),
+                          const PopupMenuItem(
+                            value: 'delete',
+                            child: Row(children: [
+                              Icon(Icons.delete_outline,
+                                  size: 16, color: Colors.red),
+                              SizedBox(width: 8),
+                              Text('Delete',
+                                  style: TextStyle(color: Colors.red)),
+                            ]),
+                          ),
+                        ],
+                        onSelected: (value) {
+                          if (value == 'edit_date') {
+                            _editDate(ctx, id, date ?? DateTime.now());
+                          } else if (value == 'edit_qty') {
+                            _editQty(ctx, r);
+                          } else if (value == 'delete') {
+                            _confirmDelete(ctx, id, name, qty);
+                          }
+                        },
+                      ),
                     ),
-                  ),
-                ]),
+                  ]),
+                ),
               );
             }),
           ]),

@@ -362,6 +362,12 @@ class FirestoreService {
       _productions.orderBy('date', descending: true).snapshots().map(
           (s) => s.docs.map((d) => {'id': d.id, ...d.data() as Map<String, dynamic>}).toList());
 
+  Future<Map<String, dynamic>?> getManufactureRecord(String id) async {
+    final doc = await _productions.doc(id).get();
+    if (!doc.exists) return null;
+    return {'id': doc.id, ...doc.data() as Map<String, dynamic>};
+  }
+
   static String _bomCostToExpenseCategory(String type) {
     switch (type.toLowerCase()) {
       case 'labor': return 'Labor';
@@ -415,6 +421,10 @@ class FirestoreService {
       'salePrice': salePrice,
       'totalValue': salePrice * qty,
       'date': txDate.toIso8601String(),
+      'bomSnapshot': {
+        'materials': bom.materials.map((m) => m.toMap()).toList(),
+        'otherCosts': bom.otherCosts.map((c) => c.toMap()).toList(),
+      },
     });
 
     // Log stock transactions
@@ -433,7 +443,7 @@ class FirestoreService {
       id: '${logId}_$productId',
       itemId: productId, itemName: productName,
       type: 'Manufactured', quantity: qty,
-      pricePerUnit: bom.totalCostPerUnit, date: txDate,
+      pricePerUnit: salePrice, date: txDate,
       referenceId: logId, notes: 'Manufactured $qty units',
     ).toMap());
 
@@ -498,6 +508,93 @@ class FirestoreService {
     final now = DateTime.now();
     final combined = DateTime(newDate.year, newDate.month, newDate.day, now.hour, now.minute);
     return _productions.doc(recordId).update({'date': combined.toIso8601String()});
+  }
+
+  Future<void> updateManufactureQty({
+    required String recordId,
+    required double oldQty,
+    required double newQty,
+    required double salePrice,
+    required double costPerUnit,
+  }) async {
+    if (newQty <= 0) throw Exception('Quantity must be greater than 0');
+    if (newQty == oldQty) return;
+
+    final delta = newQty - oldQty;
+
+    // Derive per-material usage from existing stock transactions
+    final txSnap = await _stockTx.where('referenceId', isEqualTo: recordId).get();
+
+    // Check raw material availability when increasing
+    if (delta > 0) {
+      for (final txDoc in txSnap.docs) {
+        final tx = txDoc.data() as Map<String, dynamic>;
+        if ((tx['type'] as String?) != 'Consumed') continue;
+        final itemId = tx['itemId'] as String?;
+        if (itemId == null) continue;
+        final itemName = tx['itemName'] as String? ?? 'Unknown';
+        final txQty = (tx['quantity'] as num).toDouble(); // negative for consumed
+        final perUnit = (-txQty) / oldQty;
+        final additionalNeeded = perUnit * delta;
+        final itemSnap = await _items.doc(itemId).get();
+        if (!itemSnap.exists) throw Exception('Material not found: $itemName');
+        final item = ItemModel.fromMap(itemSnap.data() as Map<String, dynamic>);
+        if (item.stockQty < additionalNeeded) {
+          throw Exception(
+            'Insufficient stock for $itemName.\n'
+            'Need additional: ${additionalNeeded.toStringAsFixed(2)} ${item.primaryUnit}, '
+            'Available: ${item.stockQty} ${item.primaryUnit}');
+        }
+      }
+    }
+
+    final batch = _db.batch();
+
+    for (final txDoc in txSnap.docs) {
+      final tx = txDoc.data() as Map<String, dynamic>;
+      final itemId = tx['itemId'] as String?;
+      if (itemId == null) continue;
+      final oldTxQty = (tx['quantity'] as num).toDouble();
+      final newTxQty = oldTxQty / oldQty * newQty;
+      final stockDelta = newTxQty - oldTxQty;
+
+      final itemRef = _items.doc(itemId);
+      final itemSnap = await itemRef.get();
+      if (itemSnap.exists) {
+        final item = ItemModel.fromMap(itemSnap.data() as Map<String, dynamic>);
+        batch.update(itemRef, {'stockQty': item.stockQty + stockDelta});
+      }
+      batch.update(txDoc.reference, {'quantity': newTxQty});
+    }
+
+    // Scale manufacturing expenses
+    final expSnap = await _expenses.where('referenceId', isEqualTo: recordId).get();
+    for (final expDoc in expSnap.docs) {
+      final data = expDoc.data() as Map<String, dynamic>;
+      if (data['source'] == 'manufacturing') {
+        final oldAmount = (data['amount'] as num).toDouble();
+        batch.update(expDoc.reference, {'amount': oldAmount * newQty / oldQty});
+      }
+    }
+
+    // Scale contractor earnings
+    final earnSnap = await _laborEarnings.where('referenceId', isEqualTo: recordId).get();
+    for (final earnDoc in earnSnap.docs) {
+      final data = earnDoc.data() as Map<String, dynamic>;
+      final oldAmount = (data['amount'] as num).toDouble();
+      batch.update(earnDoc.reference, {
+        'amount': oldAmount * newQty / oldQty,
+        'qty': newQty,
+      });
+    }
+
+    batch.update(_productions.doc(recordId), {
+      'qty': newQty,
+      'totalCost': costPerUnit * newQty,
+      'totalValue': salePrice * newQty,
+    });
+
+    await batch.commit();
   }
 
   Future<void> deleteManufactureRecord(String recordId) async {
