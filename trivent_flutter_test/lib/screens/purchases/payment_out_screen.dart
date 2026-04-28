@@ -4,6 +4,7 @@ import '../../services/firestore_service.dart';
 import '../../models/payment_out_model.dart';
 import '../../theme.dart';
 import 'add_payment_out_screen.dart';
+import 'payment_out_detail_screen.dart';
 
 class PaymentOutScreen extends StatelessWidget {
   const PaymentOutScreen({super.key});
@@ -65,7 +66,8 @@ class PaymentOutScreen extends StatelessWidget {
                     margin: const EdgeInsets.only(bottom: 8),
                     child: InkWell(
                       borderRadius: BorderRadius.circular(12),
-                      onTap: () {},
+                      onTap: () => Navigator.push(context,
+                          MaterialPageRoute(builder: (_) => PaymentOutDetailScreen(payment: p))),
                       child: Padding(
                         padding: const EdgeInsets.all(12),
                         child: Row(children: [

@@ -4,6 +4,7 @@ import '../../services/firestore_service.dart';
 import '../../models/payment_in_model.dart';
 import '../../theme.dart';
 import 'add_payment_in_screen.dart';
+import 'payment_in_detail_screen.dart';
 
 class PaymentInScreen extends StatelessWidget {
   const PaymentInScreen({super.key});
@@ -65,7 +66,8 @@ class PaymentInScreen extends StatelessWidget {
                     margin: const EdgeInsets.only(bottom: 8),
                     child: InkWell(
                       borderRadius: BorderRadius.circular(12),
-                      onTap: () {},
+                      onTap: () => Navigator.push(context,
+                          MaterialPageRoute(builder: (_) => PaymentInDetailScreen(payment: p))),
                       child: Padding(
                         padding: const EdgeInsets.all(12),
                         child: Row(children: [

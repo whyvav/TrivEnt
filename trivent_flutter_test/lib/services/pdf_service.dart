@@ -9,6 +9,8 @@ import 'package:path_provider/path_provider.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import '../models/sale_model.dart';
 import '../models/purchase_model.dart';
+import '../models/payment_in_model.dart';
+import '../models/payment_out_model.dart';
 import 'company_service.dart';
 
 class PdfService {
@@ -176,6 +178,162 @@ class PdfService {
             pw.SizedBox(height: 12),
             pw.Text('Notes: ${purchase.notes}', style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700)),
           ],
+        ],
+      ),
+    ));
+    return pdf.save();
+  }
+
+  // ── PAYMENT IN RECEIPT ───────────────────────────────────────
+
+  Future<Uint8List> buildPaymentInReceipt(PaymentInModel payment) async {
+    final pdf = pw.Document();
+    final theme = await _theme();
+    pdf.addPage(pw.Page(
+      theme: theme,
+      pageFormat: PdfPageFormat.a4,
+      margin: const pw.EdgeInsets.all(32),
+      build: (ctx) => pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          _letterhead('PAYMENT RECEIPT'),
+          pw.SizedBox(height: 8),
+          _divider(),
+          pw.SizedBox(height: 8),
+          pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+            pw.Expanded(child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Text('Received From:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10, color: PdfColors.grey700)),
+                pw.Text(payment.partyName, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12)),
+                if (payment.partyFirm != null && payment.partyFirm!.isNotEmpty)
+                  pw.Text(payment.partyFirm!, style: const pw.TextStyle(fontSize: 10)),
+                if (payment.partyPhone != null)
+                  pw.Text('Ph: ${payment.partyPhone}', style: const pw.TextStyle(fontSize: 10)),
+              ],
+            )),
+            pw.Expanded(child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.end,
+              children: [
+                _kv('Receipt No.', payment.receiptNo),
+                _kv('Date', df.format(payment.date)),
+                _kv('Mode', payment.paymentType),
+                if (payment.paymentRef != null && payment.paymentRef!.isNotEmpty)
+                  _kv('Ref.', payment.paymentRef!),
+              ],
+            )),
+          ]),
+          pw.SizedBox(height: 16),
+          _divider(),
+          pw.SizedBox(height: 16),
+          pw.Container(
+            padding: const pw.EdgeInsets.all(16),
+            decoration: pw.BoxDecoration(
+              color: PdfColors.green50,
+              border: pw.Border.all(color: PdfColors.green300, width: 0.5),
+              borderRadius: pw.BorderRadius.circular(4),
+            ),
+            child: pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
+              pw.Text('Amount Received',
+                  style: const pw.TextStyle(fontSize: 12, color: PdfColors.grey700)),
+              pw.Text(cf.format(payment.amount),
+                  style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold, color: PdfColors.green900)),
+            ]),
+          ),
+          if (payment.notes != null && payment.notes!.isNotEmpty) ...[
+            pw.SizedBox(height: 12),
+            pw.Text('Notes: ${payment.notes}',
+                style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700)),
+          ],
+          pw.SizedBox(height: 16),
+          _divider(),
+          pw.SizedBox(height: 8),
+          pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
+            pw.Text('Thank you!',
+                style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey600)),
+            pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.center, children: [
+              pw.SizedBox(height: 28),
+              pw.Text('Authorised Signatory', style: const pw.TextStyle(fontSize: 9)),
+            ]),
+          ]),
+        ],
+      ),
+    ));
+    return pdf.save();
+  }
+
+  // ── PAYMENT OUT VOUCHER ──────────────────────────────────────
+
+  Future<Uint8List> buildPaymentOutVoucher(PaymentOutModel payment) async {
+    final pdf = pw.Document();
+    final theme = await _theme();
+    pdf.addPage(pw.Page(
+      theme: theme,
+      pageFormat: PdfPageFormat.a4,
+      margin: const pw.EdgeInsets.all(32),
+      build: (ctx) => pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          _letterhead('PAYMENT VOUCHER'),
+          pw.SizedBox(height: 8),
+          _divider(),
+          pw.SizedBox(height: 8),
+          pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+            pw.Expanded(child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Text('Paid To:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10, color: PdfColors.grey700)),
+                pw.Text(payment.partyName, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12)),
+                if (payment.partyFirm != null && payment.partyFirm!.isNotEmpty)
+                  pw.Text(payment.partyFirm!, style: const pw.TextStyle(fontSize: 10)),
+                if (payment.partyPhone != null)
+                  pw.Text('Ph: ${payment.partyPhone}', style: const pw.TextStyle(fontSize: 10)),
+              ],
+            )),
+            pw.Expanded(child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.end,
+              children: [
+                _kv('Payment No.', payment.paymentNo),
+                _kv('Date', df.format(payment.date)),
+                _kv('Mode', payment.paymentType),
+                if (payment.paymentRef != null && payment.paymentRef!.isNotEmpty)
+                  _kv('Ref.', payment.paymentRef!),
+              ],
+            )),
+          ]),
+          pw.SizedBox(height: 16),
+          _divider(),
+          pw.SizedBox(height: 16),
+          pw.Container(
+            padding: const pw.EdgeInsets.all(16),
+            decoration: pw.BoxDecoration(
+              color: PdfColors.red50,
+              border: pw.Border.all(color: PdfColors.red300, width: 0.5),
+              borderRadius: pw.BorderRadius.circular(4),
+            ),
+            child: pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
+              pw.Text('Amount Paid',
+                  style: const pw.TextStyle(fontSize: 12, color: PdfColors.grey700)),
+              pw.Text(cf.format(payment.amount),
+                  style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold, color: PdfColors.red900)),
+            ]),
+          ),
+          if (payment.notes != null && payment.notes!.isNotEmpty) ...[
+            pw.SizedBox(height: 12),
+            pw.Text('Notes: ${payment.notes}',
+                style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700)),
+          ],
+          pw.SizedBox(height: 16),
+          _divider(),
+          pw.SizedBox(height: 8),
+          pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
+            pw.Text('Payment confirmed.',
+                style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey600)),
+            pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.center, children: [
+              pw.SizedBox(height: 28),
+              pw.Text('Authorised Signatory', style: const pw.TextStyle(fontSize: 9)),
+            ]),
+          ]),
         ],
       ),
     ));
