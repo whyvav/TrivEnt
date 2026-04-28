@@ -80,14 +80,16 @@ class ItemDetailScreen extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
                     color: item.category == 'product'
-                        ? AppTheme.primary.withOpacity(0.1)
-                        : AppTheme.accent.withOpacity(0.1),
+                        ? AppTheme.primary.withValues(alpha: 0.1)
+                        : item.category == 'raw_material'
+                            ? AppTheme.accent.withValues(alpha: 0.1)
+                            : Colors.purple.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
-                    item.category == 'product' ? 'Product' : 'Raw Material',
+                    item.category == 'product' ? 'Product' : item.category == 'raw_material' ? 'Raw Material' : 'Other',
                     style: TextStyle(
-                      color: item.category == 'product' ? AppTheme.primary : AppTheme.accent,
+                      color: item.category == 'product' ? AppTheme.primary : item.category == 'raw_material' ? AppTheme.accent : Colors.purple,
                       fontSize: 12, fontWeight: FontWeight.w600,
                     ),
                   ),

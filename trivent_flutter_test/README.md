@@ -20,6 +20,14 @@ samples, guidance on mobile development, and a full API reference.
 # Run (Chrome, web app, locally)
 flutter run -d chrome
 
+flutter run -d chrome --web-renderer html
+
+Or to make it permanent for development, add to web/index.html:
+<script>
+  window.flutterWebRenderer = "html";
+</script>
+
+
 # Deployment (Web -- via GitHub to Vercel) Steps
 After making a change, to publish to Vercel:
 flutter build web --release

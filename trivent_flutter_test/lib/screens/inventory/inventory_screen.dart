@@ -22,7 +22,7 @@ class _InventoryScreenState extends State<InventoryScreen>
   @override
   void initState() {
     super.initState();
-    _tab = TabController(length: 2, vsync: this);
+    _tab = TabController(length: 3, vsync: this);
   }
 
   @override
@@ -34,12 +34,12 @@ class _InventoryScreenState extends State<InventoryScreen>
           controller: _tab,
           labelColor: Colors.white,
           unselectedLabelColor: Colors.white70,
-          tabs: const [Tab(text: 'Products'), Tab(text: 'Raw Materials')],
+          tabs: const [Tab(text: 'Products'), Tab(text: 'Raw Materials'), Tab(text: 'Other')],
         ),
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
-          final cat = _tab.index == 0 ? 'product' : 'raw_material';
+          final cat = _tab.index == 0 ? 'product' : _tab.index == 1 ? 'raw_material' : 'other';
           Navigator.push(context,
               MaterialPageRoute(builder: (_) => AddItemScreen(defaultCategory: cat)));
         },
@@ -77,6 +77,13 @@ class _InventoryScreenState extends State<InventoryScreen>
                       else { _sortColumn = col; _sortAsc = true; }
                     })),
                 _ItemList(category: 'raw_material', svc: svc,
+                    search: _searchQuery, sortCol: _sortColumn,
+                    sortAsc: _sortAsc,
+                    onSort: (col) => setState(() {
+                      if (_sortColumn == col) _sortAsc = !_sortAsc;
+                      else { _sortColumn = col; _sortAsc = true; }
+                    })),
+                _ItemList(category: 'other', svc: svc,
                     search: _searchQuery, sortCol: _sortColumn,
                     sortAsc: _sortAsc,
                     onSort: (col) => setState(() {
