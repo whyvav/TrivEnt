@@ -204,6 +204,7 @@ class _WorkerDetailScreenState extends State<WorkerDetailScreen> {
           await svc.payWages(
             workerId: _worker.id,
             workerName: _worker.name,
+            isContractor: _worker.isContractor,
             amount: amount,
             paymentType: type,
             paymentRef: ref.isEmpty ? null : ref,
@@ -219,8 +220,7 @@ class _WorkerDetailScreenState extends State<WorkerDetailScreen> {
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('Delete Payment?'),
-        content: const Text(
-            'This removes the payment record and its linked expense entry.'),
+        content: const Text('This removes this wage payment record.'),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context, false),
@@ -234,10 +234,13 @@ class _WorkerDetailScreenState extends State<WorkerDetailScreen> {
     );
     if (ok != true || !mounted) return;
     try {
-      // Delete wage payment
       await svc.deleteWagePayment(paymentId);
-      // The linked expense has id = 'wages_$paymentId'
-      await svc.deleteExpense('wages_$paymentId');
+      // For daily-wage workers, delete the linked expense entry.
+      // For contractors no expense is created (labor already in mfg BoM);
+      // deleting a non-existent Firestore doc is a safe no-op.
+      if (!_worker.isContractor) {
+        await svc.deleteExpense('wages_$paymentId');
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

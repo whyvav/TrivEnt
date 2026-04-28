@@ -794,9 +794,9 @@ Future<void> addSale(SaleModel sale) async {
   Future<Map<String, dynamic>> getDashboardStats() async {
     final now = DateTime.now();
     final monthStart = DateTime(now.year, now.month, 1);
-    final salesSnap = await _sales.get();
-    final purchasesSnap = await _purchases.get();
-    final expensesSnap = await _expenses.get();
+    final results = await Future.wait([_sales.get(), _expenses.get()]);
+    final salesSnap = results[0];
+    final expensesSnap = results[1];
 
     double totalSales = 0, totalReceived = 0;
     double monthlySales = 0, monthlyExpenses = 0;
@@ -807,14 +807,11 @@ Future<void> addSale(SaleModel sale) async {
       totalReceived += s.amountPaid;
       if (s.date.isAfter(monthStart)) monthlySales += s.totalAmount;
     }
-    for (final d in purchasesSnap.docs) {
-      final p = PurchaseModel.fromMap(d.data() as Map<String, dynamic>);
-      if (p.date.isAfter(monthStart)) monthlyExpenses += p.totalAmount;
-    }
+    // Purchases are inventory acquisitions (assets), not expenses.
+    // Costs hit the P&L only as COGS when materials are consumed in manufacturing,
+    // which is already recorded in the expenses collection.
     for (final d in expensesSnap.docs) {
       final e = ExpenseModel.fromMap(d.data() as Map<String, dynamic>);
-      // Exclude COGS (non-cash, already captured as purchase cost)
-      if (e.isCogs) continue;
       if (e.date.isAfter(monthStart)) monthlyExpenses += e.amount;
     }
 
@@ -910,8 +907,6 @@ Future<void> addSale(SaleModel sale) async {
     final expSnap = await _expenses.where('date', isGreaterThanOrEqualTo: monthStartStr).get();
     for (final d in expSnap.docs) {
       final e = ExpenseModel.fromMap(d.data() as Map<String, dynamic>);
-      // Exclude COGS (non-cash, already captured as purchase cost)
-      if (e.isCogs) continue;
       final day = e.date.day - 1;
       if (day >= 0 && day < daysInMonth) expByDay[day] += e.amount;
     }
@@ -972,6 +967,7 @@ Future<void> addSale(SaleModel sale) async {
   Future<void> payWages({
     required String workerId,
     required String workerName,
+    required bool isContractor,
     required double amount,
     required String paymentType,
     String? paymentRef,
@@ -995,19 +991,24 @@ Future<void> addSale(SaleModel sale) async {
       notes: notes,
     ).toMap());
 
-    // Also record as an expense (cash outflow for wages)
-    final expId = 'wages_$id';
-    batch.set(_expenses.doc(expId), ExpenseModel(
-      id: expId,
-      category: 'Labor',
-      description: 'Wages paid to $workerName',
-      amount: amount,
-      paymentType: paymentType,
-      date: payDate,
-      source: 'wages',
-      referenceId: workerId,
-      notes: notes,
-    ).toMap());
+    // For contractors, the labor expense was already recorded per manufacturing
+    // batch (from the BoM other-cost entry). Paying wages merely settles the
+    // outstanding LaborEarning balance — it is not a new expense.
+    // For daily-wage workers there is no prior expense, so record it here.
+    if (!isContractor) {
+      final expId = 'wages_$id';
+      batch.set(_expenses.doc(expId), ExpenseModel(
+        id: expId,
+        category: 'Labor',
+        description: 'Wages paid to $workerName',
+        amount: amount,
+        paymentType: paymentType,
+        date: payDate,
+        source: 'wages',
+        referenceId: workerId,
+        notes: notes,
+      ).toMap());
+    }
 
     await batch.commit();
   }
