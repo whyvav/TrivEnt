@@ -15,6 +15,7 @@ import 'screens/parties/parties_screen.dart';
 import 'screens/manufacturing/bom_screen.dart';
 import 'screens/manufacturing/manufacture_screen.dart';
 import 'screens/reports/reports_screen.dart';
+import 'screens/workers/workers_screen.dart';
 import 'screens/coming_soon_screen.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/company/add_edit_company_screen.dart';
@@ -90,6 +91,7 @@ const int _idxDeliveryChallan = 13;
 const int _idxPaymentOut     = 14;
 const int _idxPurchaseReturn = 15;
 const int _idxPurchaseOrder  = 16;
+const int _idxWorkers        = 17;
 
 const _productionIndices = {_idxInventory, _idxBom, _idxManufacture};
 const _salesIndices      = {_idxSales, _idxPaymentIn, _idxSaleReturn,
@@ -115,6 +117,7 @@ const _screenLabels = [
   'Payment Out',         // 14
   'Purchase Return',     // 15
   'Purchase Order',      // 16
+  'Workers',             // 17
 ];
 
 // Bottom-nav index → screen index (Dashboard, Sales, Purchases, Expenses, Parties)
@@ -153,6 +156,7 @@ class _MainShellState extends State<MainShell> {
     PaymentOutScreen(),                                       // 14
     ComingSoonScreen(title: 'Purchase Return'),               // 15
     ComingSoonScreen(title: 'Purchase Order'),                // 16
+    WorkersScreen(),                                          // 17
   ];
 
   void _selectScreen(int index) {
@@ -428,6 +432,7 @@ class _DesktopSidebar extends StatelessWidget {
               _item(Icons.account_balance_wallet_outlined, Icons.account_balance_wallet,
                   'Expenses', _idxExpenses),
               _item(Icons.people_outline, Icons.people, 'Parties', _idxParties),
+              _item(Icons.engineering_outlined, Icons.engineering, 'Workers', _idxWorkers),
               _item(Icons.bar_chart_outlined, Icons.bar_chart, 'Reports', _idxReports),
             ],
           ),
@@ -667,6 +672,7 @@ class _AppDrawerState extends State<_AppDrawer> {
         _drawerItem(_idxExpenses, Icons.account_balance_wallet_outlined,
             Icons.account_balance_wallet, 'Expenses'),
         _drawerItem(_idxParties, Icons.people_outline, Icons.people, 'Parties'),
+        _drawerItem(_idxWorkers, Icons.engineering_outlined, Icons.engineering, 'Workers'),
         _drawerItem(_idxReports, Icons.bar_chart_outlined, Icons.bar_chart, 'Reports'),
 
         const Divider(),

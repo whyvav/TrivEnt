@@ -13,6 +13,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   final svc = FirestoreService();
   String _category = 'Misc';
   String _paymentType = 'Cash';
+  static const _paymentTypes = ['Cash', 'UPI', 'Bank Transfer', 'Cheque'];
   final _description = TextEditingController();
   final _amount = TextEditingController();
   final _partyName = TextEditingController();
@@ -31,7 +32,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
             DropdownButtonFormField<String>(
               initialValue: _category,
               decoration: const InputDecoration(labelText: 'Category'),
-              items: ExpenseModel.categories
+              items: ExpenseModel.manualCategories
                   .map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
               onChanged: (v) => setState(() => _category = v!),
             ),
@@ -49,7 +50,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
               Expanded(child: DropdownButtonFormField<String>(
                 initialValue: _paymentType,
                 decoration: const InputDecoration(labelText: 'Payment Type'),
-                items: ['Cash', 'UPI', 'Bank Transfer', 'Cheque']
+                items: _paymentTypes
                     .map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
                 onChanged: (v) => setState(() => _paymentType = v!),
               )),

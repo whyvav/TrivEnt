@@ -46,6 +46,4 @@ app.*.map.json
 
 # User-specific files
 .claude/settings.local.json
-
-# Local notes (not tracked in git)
 notes/

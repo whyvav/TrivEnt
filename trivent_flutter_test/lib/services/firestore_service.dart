@@ -9,6 +9,9 @@ import '../models/unit_model.dart';
 import '../models/stock_transaction_model.dart';
 import '../models/payment_in_model.dart';
 import '../models/payment_out_model.dart';
+import '../models/worker_model.dart';
+import '../models/labor_earning_model.dart';
+import '../models/wage_payment_model.dart';
 import 'company_service.dart';
 
 class FirestoreService {
@@ -37,8 +40,11 @@ class FirestoreService {
   CollectionReference get _counters    => _companyDoc.collection('counters');
   CollectionReference get _units       => _companyDoc.collection('units');
   CollectionReference get _stockTx     => _companyDoc.collection('stock_transactions');
-  CollectionReference get _paymentIns  => _companyDoc.collection('payment_ins');
-  CollectionReference get _paymentOuts => _companyDoc.collection('payment_outs');
+  CollectionReference get _paymentIns   => _companyDoc.collection('payment_ins');
+  CollectionReference get _paymentOuts  => _companyDoc.collection('payment_outs');
+  CollectionReference get _workers      => _companyDoc.collection('workers');
+  CollectionReference get _laborEarnings => _companyDoc.collection('labor_earnings');
+  CollectionReference get _wagePayments => _companyDoc.collection('wage_payments');
 
   // ── Invoice Numbering ────────────────────────────────────────
 
@@ -356,6 +362,17 @@ class FirestoreService {
       _productions.orderBy('date', descending: true).snapshots().map(
           (s) => s.docs.map((d) => {'id': d.id, ...d.data() as Map<String, dynamic>}).toList());
 
+  static String _bomCostToExpenseCategory(String type) {
+    switch (type.toLowerCase()) {
+      case 'labor': return 'Labor';
+      case 'electricity': return 'Utilities';
+      case 'fuel': return 'Utilities';
+      case 'transport': return 'Transport';
+      case 'maintenance': return 'Maintenance';
+      default: return 'Misc';
+    }
+  }
+
   Future<void> manufacture({
     required String productId, required String productName,
     required double qty, required BomModel bom,
@@ -420,6 +437,60 @@ class FirestoreService {
       referenceId: logId, notes: 'Manufactured $qty units',
     ).toMap());
 
+    // Auto-generate expense records from BOM other costs
+    final qtyLabel = qty.truncateToDouble() == qty
+        ? qty.toStringAsFixed(0) : qty.toStringAsFixed(2);
+    for (var i = 0; i < bom.otherCosts.length; i++) {
+      final cost = bom.otherCosts[i];
+      final expId = '${logId}_exp_cost_$i';
+      batch.set(_expenses.doc(expId), ExpenseModel(
+        id: expId,
+        category: _bomCostToExpenseCategory(cost.type),
+        description: 'Manufacturing: $productName × $qtyLabel — ${cost.type}',
+        amount: cost.costPerUnit * qty,
+        paymentType: '',
+        date: txDate,
+        source: 'manufacturing',
+        referenceId: logId,
+      ).toMap());
+    }
+
+    // COGS entry for raw materials consumed
+    final totalMatCost = bom.totalMaterialCost * qty;
+    if (totalMatCost > 0) {
+      final cogsId = '${logId}_exp_cogs';
+      batch.set(_expenses.doc(cogsId), ExpenseModel(
+        id: cogsId,
+        category: 'Raw Materials (COGS)',
+        description: 'Manufacturing: $productName × $qtyLabel — Materials Used',
+        amount: totalMatCost,
+        paymentType: '',
+        date: txDate,
+        source: 'manufacturing',
+        referenceId: logId,
+      ).toMap());
+    }
+
+    // Auto-create earnings for contractors linked to this product
+    final contractors = await getContractorsForProduct(productId);
+    for (final worker in contractors) {
+      if (worker.ratePerUnit == null) continue;
+      final earnAmount = worker.ratePerUnit! * qty;
+      final earnId = '${logId}_earn_${worker.id}';
+      batch.set(_laborEarnings.doc(earnId), LaborEarningModel(
+        id: earnId,
+        workerId: worker.id,
+        workerName: worker.name,
+        date: txDate,
+        amount: earnAmount,
+        qty: qty,
+        unit: 'units',
+        source: 'manufacturing',
+        referenceId: logId,
+        notes: 'Manufactured $qtyLabel × $productName',
+      ).toMap());
+    }
+
     await batch.commit();
   }
 
@@ -431,6 +502,8 @@ class FirestoreService {
 
   Future<void> deleteManufactureRecord(String recordId) async {
     final batch = _db.batch();
+
+    // Reverse stock movements
     final txSnap = await _stockTx.where('referenceId', isEqualTo: recordId).get();
     for (final txDoc in txSnap.docs) {
       final tx = txDoc.data() as Map<String, dynamic>;
@@ -446,6 +519,24 @@ class FirestoreService {
       }
       batch.delete(txDoc.reference);
     }
+
+    // Delete auto-generated expenses linked to this production record
+    final expSnap = await _expenses
+        .where('referenceId', isEqualTo: recordId)
+        .get();
+    for (final expDoc in expSnap.docs) {
+      final data = expDoc.data() as Map<String, dynamic>;
+      if (data['source'] == 'manufacturing') batch.delete(expDoc.reference);
+    }
+
+    // Delete contractor earnings linked to this production record
+    final earnSnap = await _laborEarnings
+        .where('referenceId', isEqualTo: recordId)
+        .get();
+    for (final earnDoc in earnSnap.docs) {
+      batch.delete(earnDoc.reference);
+    }
+
     batch.delete(_productions.doc(recordId));
     await batch.commit();
   }
@@ -609,6 +700,8 @@ Future<void> addSale(SaleModel sale) async {
     }
     for (final d in expensesSnap.docs) {
       final e = ExpenseModel.fromMap(d.data() as Map<String, dynamic>);
+      // Exclude COGS (non-cash, already captured as purchase cost)
+      if (e.isCogs) continue;
       if (e.date.isAfter(monthStart)) monthlyExpenses += e.amount;
     }
 
@@ -680,9 +773,120 @@ Future<void> addSale(SaleModel sale) async {
     final expSnap = await _expenses.where('date', isGreaterThanOrEqualTo: monthStartStr).get();
     for (final d in expSnap.docs) {
       final e = ExpenseModel.fromMap(d.data() as Map<String, dynamic>);
+      // Exclude COGS (non-cash, already captured as purchase cost)
+      if (e.isCogs) continue;
       final day = e.date.day - 1;
       if (day >= 0 && day < daysInMonth) expByDay[day] += e.amount;
     }
     return {'sales': salesByDay, 'expenses': expByDay};
+  }
+
+  // ── WORKERS ──────────────────────────────────────────────────
+
+  Stream<List<WorkerModel>> streamWorkers() =>
+      _workers.orderBy('name').snapshots().map((s) => s.docs
+          .map((d) => WorkerModel.fromMap(d.data() as Map<String, dynamic>))
+          .toList());
+
+  Future<void> saveWorker(WorkerModel worker) =>
+      _workers.doc(worker.id).set(worker.toMap());
+
+  Future<void> deleteWorker(String id) => _workers.doc(id).delete();
+
+  Future<List<WorkerModel>> getContractorsForProduct(String productId) async {
+    final s = await _workers
+        .where('linkedProductId', isEqualTo: productId)
+        .get();
+    return s.docs
+        .map((d) => WorkerModel.fromMap(d.data() as Map<String, dynamic>))
+        .where((w) => w.isContractor)
+        .toList();
+  }
+
+  // ── LABOR EARNINGS ───────────────────────────────────────────
+
+  Stream<List<LaborEarningModel>> streamLaborEarnings(String workerId) =>
+      _laborEarnings.where('workerId', isEqualTo: workerId).snapshots().map((s) {
+        final list = s.docs
+            .map((d) => LaborEarningModel.fromMap(d.data() as Map<String, dynamic>))
+            .toList();
+        list.sort((a, b) => b.date.compareTo(a.date));
+        return list;
+      });
+
+  Future<void> addLaborEarning(LaborEarningModel earning) =>
+      _laborEarnings.doc(earning.id).set(earning.toMap());
+
+  Future<void> deleteLaborEarning(String id) => _laborEarnings.doc(id).delete();
+
+  // ── WAGE PAYMENTS ────────────────────────────────────────────
+
+  Stream<List<WagePaymentModel>> streamWagePayments(String workerId) =>
+      _wagePayments.where('workerId', isEqualTo: workerId).snapshots().map((s) {
+        final list = s.docs
+            .map((d) => WagePaymentModel.fromMap(d.data() as Map<String, dynamic>))
+            .toList();
+        list.sort((a, b) => b.date.compareTo(a.date));
+        return list;
+      });
+
+  Future<void> deleteWagePayment(String id) => _wagePayments.doc(id).delete();
+
+  Future<void> payWages({
+    required String workerId,
+    required String workerName,
+    required double amount,
+    required String paymentType,
+    String? paymentRef,
+    String? notes,
+    DateTime? date,
+  }) async {
+    final now = DateTime.now();
+    final payDate = date ?? now;
+    final id = now.millisecondsSinceEpoch.toString();
+
+    final batch = _db.batch();
+
+    batch.set(_wagePayments.doc(id), WagePaymentModel(
+      id: id,
+      workerId: workerId,
+      workerName: workerName,
+      amount: amount,
+      paymentType: paymentType,
+      paymentRef: paymentRef,
+      date: payDate,
+      notes: notes,
+    ).toMap());
+
+    // Also record as an expense (cash outflow for wages)
+    final expId = 'wages_$id';
+    batch.set(_expenses.doc(expId), ExpenseModel(
+      id: expId,
+      category: 'Labor',
+      description: 'Wages paid to $workerName',
+      amount: amount,
+      paymentType: paymentType,
+      date: payDate,
+      source: 'wages',
+      referenceId: workerId,
+      notes: notes,
+    ).toMap());
+
+    await batch.commit();
+  }
+
+  Future<Map<String, double>> getWorkerBalance(String workerId) async {
+    final results = await Future.wait([
+      _laborEarnings.where('workerId', isEqualTo: workerId).get(),
+      _wagePayments.where('workerId', isEqualTo: workerId).get(),
+    ]);
+    double earned = 0, paid = 0;
+    for (final d in results[0].docs) {
+      earned += ((d.data() as Map)['amount'] as num).toDouble();
+    }
+    for (final d in results[1].docs) {
+      paid += ((d.data() as Map)['amount'] as num).toDouble();
+    }
+    return {'earned': earned, 'paid': paid, 'outstanding': earned - paid};
   }
 }
