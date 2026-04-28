@@ -75,42 +75,20 @@ class _ManufactureDetailScreenState extends State<ManufactureDetailScreen> {
       appBar: AppBar(
         title: Text('Production: $name'),
         actions: [
-          PopupMenuButton<String>(
-            itemBuilder: (_) => [
-              const PopupMenuItem(
-                value: 'edit_date',
-                child: Row(children: [
-                  Icon(Icons.edit_calendar_outlined, size: 16),
-                  SizedBox(width: 8),
-                  Text('Edit Date'),
-                ]),
-              ),
-              const PopupMenuItem(
-                value: 'edit_qty',
-                child: Row(children: [
-                  Icon(Icons.edit_outlined, size: 16),
-                  SizedBox(width: 8),
-                  Text('Edit Quantity'),
-                ]),
-              ),
-              const PopupMenuItem(
-                value: 'delete',
-                child: Row(children: [
-                  Icon(Icons.delete_outline, size: 16, color: Colors.red),
-                  SizedBox(width: 8),
-                  Text('Delete', style: TextStyle(color: Colors.red)),
-                ]),
-              ),
-            ],
-            onSelected: (value) {
-              if (value == 'edit_date') {
-                _editDate(id, date ?? DateTime.now());
-              } else if (value == 'edit_qty') {
-                _editQty(id, qty, salePrice, costPerUnit);
-              } else if (value == 'delete') {
-                _confirmDelete(id, name, qty);
-              }
-            },
+          IconButton(
+            icon: const Icon(Icons.edit_calendar_outlined),
+            tooltip: 'Edit Date',
+            onPressed: () => _editDate(id, date ?? DateTime.now()),
+          ),
+          IconButton(
+            icon: const Icon(Icons.edit_outlined),
+            tooltip: 'Edit Quantity',
+            onPressed: () => _editQty(id, qty, salePrice, costPerUnit),
+          ),
+          IconButton(
+            icon: const Icon(Icons.delete_outline, color: Colors.red),
+            tooltip: 'Delete',
+            onPressed: () => _confirmDelete(id, name, qty),
           ),
         ],
       ),

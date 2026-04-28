@@ -6,6 +6,8 @@ import '../../services/firestore_service.dart';
 import '../../theme.dart';
 import 'add_item_screen.dart';
 import '../manufacturing/manufacture_detail_screen.dart';
+import '../sales/sale_detail_screen.dart';
+import '../purchases/purchase_detail_screen.dart';
 
 class ItemDetailScreen extends StatelessWidget {
   final ItemModel item;
@@ -215,10 +217,23 @@ class ItemDetailScreen extends StatelessWidget {
                   ),
                   ...txList.map((tx) {
                     final isIn = tx.quantity > 0;
-                    final isMfg = tx.type == 'Manufactured' && tx.referenceId != null;
+                    final hasRef = tx.referenceId != null;
+                    final isMfg = tx.type == 'Manufactured' && hasRef;
+                    final isSale = tx.type == 'Sale' && hasRef;
+                    final isConsumed = tx.type == 'Consumed' && hasRef;
+                    final isPurchase = tx.type == 'Purchase' && hasRef;
+                    final isNavigable = isMfg || isSale || isConsumed || isPurchase;
                     return InkWell(
-                      onTap: isMfg
-                          ? () => _navigateToMfgRecord(context, svc, tx.referenceId!)
+                      onTap: isNavigable
+                          ? () {
+                              if (isMfg || isConsumed) {
+                                _navigateToMfgRecord(context, svc, tx.referenceId!);
+                              } else if (isSale) {
+                                _navigateToSaleRecord(context, svc, tx.referenceId!);
+                              } else if (isPurchase) {
+                                _navigateToPurchaseRecord(context, svc, tx.referenceId!);
+                              }
+                            }
                           : null,
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -231,7 +246,7 @@ class ItemDetailScreen extends StatelessWidget {
                               Row(children: [
                                 Text(tx.type,
                                     style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 12)),
-                                if (isMfg) ...[
+                                if (isNavigable) ...[
                                   const SizedBox(width: 4),
                                   Icon(Icons.chevron_right, size: 14, color: Colors.grey.shade400),
                                 ],
@@ -278,6 +293,24 @@ class ItemDetailScreen extends StatelessWidget {
     if (record != null && context.mounted) {
       Navigator.push(context,
           MaterialPageRoute(builder: (_) => ManufactureDetailScreen(record: record)));
+    }
+  }
+
+  Future<void> _navigateToSaleRecord(
+      BuildContext context, FirestoreService svc, String recordId) async {
+    final sale = await svc.getSaleRecord(recordId);
+    if (sale != null && context.mounted) {
+      Navigator.push(context,
+          MaterialPageRoute(builder: (_) => SaleDetailScreen(sale: sale)));
+    }
+  }
+
+  Future<void> _navigateToPurchaseRecord(
+      BuildContext context, FirestoreService svc, String recordId) async {
+    final purchase = await svc.getPurchaseRecord(recordId);
+    if (purchase != null && context.mounted) {
+      Navigator.push(context,
+          MaterialPageRoute(builder: (_) => PurchaseDetailScreen(purchase: purchase)));
     }
   }
 

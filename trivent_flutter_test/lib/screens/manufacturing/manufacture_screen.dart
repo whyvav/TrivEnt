@@ -304,9 +304,94 @@ class _ManufactureScreenState extends State<ManufactureScreen> {
 
 // ── Production History ────────────────────────────────────────────
 
-class _ProductionHistory extends StatelessWidget {
+class _ProductionHistory extends StatefulWidget {
   final FirestoreService svc;
   const _ProductionHistory({required this.svc});
+  @override
+  State<_ProductionHistory> createState() => _ProductionHistoryState();
+}
+
+class _ProductionHistoryState extends State<_ProductionHistory> {
+  String? _filterProductName;
+  String _datePreset = 'All';
+  DateTime? _customStart;
+  DateTime? _customEnd;
+
+  static const _presets = [
+    'All', 'Today', 'This Week', 'This Month', 'This Quarter', 'This FY', 'Custom',
+  ];
+
+  bool get _hasActiveFilter =>
+      _filterProductName != null || _datePreset != 'All';
+
+  DateTimeRange? _resolvedRange() {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    switch (_datePreset) {
+      case 'Today':
+        return DateTimeRange(start: today, end: today.add(const Duration(days: 1)));
+      case 'This Week':
+        final weekStart = today.subtract(Duration(days: today.weekday - 1));
+        return DateTimeRange(start: weekStart, end: weekStart.add(const Duration(days: 7)));
+      case 'This Month':
+        return DateTimeRange(
+          start: DateTime(now.year, now.month, 1),
+          end: DateTime(now.year, now.month + 1, 1),
+        );
+      case 'This Quarter':
+        final qStart = now.month <= 3 ? 1 : now.month <= 6 ? 4 : now.month <= 9 ? 7 : 10;
+        final qEnd = qStart + 3;
+        return DateTimeRange(
+          start: DateTime(now.year, qStart, 1),
+          end: qEnd <= 12 ? DateTime(now.year, qEnd, 1) : DateTime(now.year + 1, 1, 1),
+        );
+      case 'This FY':
+        final fyYear = now.month >= 4 ? now.year : now.year - 1;
+        return DateTimeRange(
+          start: DateTime(fyYear, 4, 1),
+          end: DateTime(fyYear + 1, 4, 1),
+        );
+      case 'Custom':
+        if (_customStart != null && _customEnd != null) {
+          return DateTimeRange(
+            start: _customStart!,
+            end: _customEnd!.add(const Duration(days: 1)),
+          );
+        }
+        return null;
+      default:
+        return null;
+    }
+  }
+
+  List<Map<String, dynamic>> _applyFilters(List<Map<String, dynamic>> records) {
+    final range = _resolvedRange();
+    return records.where((r) {
+      if (_filterProductName != null &&
+          (r['productName'] as String? ?? '') != _filterProductName) {
+        return false;
+      }
+      if (range != null) {
+        final date = DateTime.tryParse(r['date'] as String? ?? '');
+        if (date == null) return false;
+        if (date.isBefore(range.start) || !date.isBefore(range.end)) return false;
+      }
+      return true;
+    }).toList();
+  }
+
+  Future<void> _pickCustomDate(bool isStart) async {
+    final initial = isStart
+        ? (_customStart ?? DateTime.now())
+        : (_customEnd ?? _customStart ?? DateTime.now());
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now(),
+    );
+    if (picked != null) setState(() => isStart ? _customStart = picked : _customEnd = picked);
+  }
 
   Future<void> _editDate(BuildContext context, String id, DateTime current) async {
     final picked = await showDatePicker(
@@ -317,7 +402,7 @@ class _ProductionHistory extends StatelessWidget {
     );
     if (picked != null) {
       try {
-        await svc.updateManufactureDate(id, picked);
+        await widget.svc.updateManufactureDate(id, picked);
       } catch (e) {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -374,7 +459,7 @@ class _ProductionHistory extends StatelessWidget {
 
     if (newQty != null && newQty != currentQty && context.mounted) {
       try {
-        await svc.updateManufactureQty(
+        await widget.svc.updateManufactureQty(
           recordId: id,
           oldQty: currentQty,
           newQty: newQty,
@@ -415,7 +500,7 @@ class _ProductionHistory extends StatelessWidget {
             onPressed: () async {
               Navigator.pop(context);
               try {
-                await svc.deleteManufactureRecord(id);
+                await widget.svc.deleteManufactureRecord(id);
               } catch (e) {
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -436,151 +521,331 @@ class _ProductionHistory extends StatelessWidget {
   Widget build(BuildContext context) {
     final cf = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
     final df = DateFormat('dd MMM yy, hh:mm a');
+    final dateFmt = DateFormat('dd MMM yyyy');
 
     return StreamBuilder<List<Map<String, dynamic>>>(
-      stream: svc.streamProductions(),
+      stream: widget.svc.streamProductions(),
       builder: (ctx, snap) {
-        if (snap.connectionState == ConnectionState.waiting) {
+        if (snap.connectionState == ConnectionState.waiting && snap.data == null) {
           return const Center(child: CircularProgressIndicator());
         }
-        final records = snap.data ?? [];
-        if (records.isEmpty) {
-          return Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(children: [
-                Icon(Icons.info_outline, color: Colors.grey.shade400),
-                const SizedBox(width: 8),
-                const Text('No production runs yet.',
-                    style: TextStyle(color: Colors.grey)),
-              ]),
-            ),
-          );
-        }
-        return Card(
-          child: Column(children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade100,
-                borderRadius:
-                    const BorderRadius.vertical(top: Radius.circular(12)),
+        final allRecords = snap.data ?? [];
+
+        final productNames = allRecords
+            .map((r) => r['productName'] as String? ?? '')
+            .where((n) => n.isNotEmpty)
+            .toSet()
+            .toList()
+          ..sort();
+
+        final filtered = _applyFilters(allRecords);
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ── Filter row ──────────────────────────────────────────
+            Row(children: [
+              Expanded(
+                child: InputDecorator(
+                  decoration: InputDecoration(
+                    labelText: 'Product',
+                    contentPadding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  child: DropdownButton<String?>(
+                    value: _filterProductName,
+                    isExpanded: true,
+                    isDense: true,
+                    underline: const SizedBox(),
+                    hint: const Text('All Products'),
+                    items: [
+                      const DropdownMenuItem<String?>(
+                          value: null, child: Text('All Products')),
+                      ...productNames.map((n) => DropdownMenuItem<String?>(
+                          value: n,
+                          child: Text(n, overflow: TextOverflow.ellipsis))),
+                    ],
+                    onChanged: (v) => setState(() => _filterProductName = v),
+                  ),
+                ),
               ),
-              child: const Row(children: [
-                Expanded(flex: 4, child: Text('Product',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
-                Expanded(flex: 2, child: Text('Qty',
-                    textAlign: TextAlign.right,
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
-                Expanded(flex: 3, child: Text('Cost (₹)',
-                    textAlign: TextAlign.right,
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
-                Expanded(flex: 3, child: Text('Value (₹)',
-                    textAlign: TextAlign.right,
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
-                SizedBox(width: 32),
-              ]),
-            ),
-            ...records.map((r) {
-              final id = r['id'] as String? ?? '';
-              final name = r['productName'] as String? ?? '';
-              final qty = (r['qty'] as num?)?.toDouble() ?? 0;
-              final totalCost = (r['totalCost'] as num?)?.toDouble() ?? 0;
-              final totalValue = (r['totalValue'] as num?)?.toDouble() ?? 0;
-              final date = r['date'] != null
-                  ? DateTime.tryParse(r['date'] as String)
-                  : null;
-              return InkWell(
-                onTap: () => Navigator.push(ctx,
-                    MaterialPageRoute(
-                        builder: (_) => ManufactureDetailScreen(record: r))),
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  decoration: BoxDecoration(
-                      border:
-                          Border(bottom: BorderSide(color: Colors.grey.shade100))),
-                  child: Row(children: [
-                    Expanded(flex: 4, child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(name,
-                            style: const TextStyle(
-                                fontWeight: FontWeight.w500, fontSize: 12)),
-                        if (date != null)
-                          Text(df.format(date),
-                              style: TextStyle(
-                                  color: Colors.grey.shade500, fontSize: 10)),
-                      ],
-                    )),
-                    Expanded(flex: 2, child: Text(
-                      qty.toStringAsFixed(qty.truncateToDouble() == qty ? 0 : 2),
-                      textAlign: TextAlign.right,
-                      style: const TextStyle(fontSize: 12),
-                    )),
-                    Expanded(flex: 3, child: Text(
-                      cf.format(totalCost),
-                      textAlign: TextAlign.right,
-                      style: const TextStyle(
-                          fontSize: 12, color: AppTheme.payable),
-                    )),
-                    Expanded(flex: 3, child: Text(
-                      cf.format(totalValue),
-                      textAlign: TextAlign.right,
-                      style: const TextStyle(
-                          fontSize: 12, color: AppTheme.receivable,
-                          fontWeight: FontWeight.w500),
-                    )),
-                    SizedBox(
-                      width: 32,
-                      child: PopupMenuButton<String>(
-                        icon: Icon(Icons.more_vert,
-                            size: 18, color: Colors.grey.shade500),
-                        padding: EdgeInsets.zero,
-                        itemBuilder: (_) => [
-                          const PopupMenuItem(
-                            value: 'edit_date',
-                            child: Row(children: [
-                              Icon(Icons.edit_calendar_outlined, size: 16),
-                              SizedBox(width: 8),
-                              Text('Edit Date'),
-                            ]),
-                          ),
-                          const PopupMenuItem(
-                            value: 'edit_qty',
-                            child: Row(children: [
-                              Icon(Icons.edit_outlined, size: 16),
-                              SizedBox(width: 8),
-                              Text('Edit Quantity'),
-                            ]),
-                          ),
-                          const PopupMenuItem(
-                            value: 'delete',
-                            child: Row(children: [
-                              Icon(Icons.delete_outline,
-                                  size: 16, color: Colors.red),
-                              SizedBox(width: 8),
-                              Text('Delete',
-                                  style: TextStyle(color: Colors.red)),
-                            ]),
-                          ),
-                        ],
-                        onSelected: (value) {
-                          if (value == 'edit_date') {
-                            _editDate(ctx, id, date ?? DateTime.now());
-                          } else if (value == 'edit_qty') {
-                            _editQty(ctx, r);
-                          } else if (value == 'delete') {
-                            _confirmDelete(ctx, id, name, qty);
-                          }
-                        },
+              const SizedBox(width: 8),
+              Expanded(
+                child: InputDecorator(
+                  decoration: InputDecoration(
+                    labelText: 'Date Range',
+                    contentPadding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  child: DropdownButton<String>(
+                    value: _datePreset,
+                    isExpanded: true,
+                    isDense: true,
+                    underline: const SizedBox(),
+                    items: _presets
+                        .map((p) => DropdownMenuItem(value: p, child: Text(p)))
+                        .toList(),
+                    onChanged: (v) {
+                      if (v != null) setState(() => _datePreset = v);
+                    },
+                  ),
+                ),
+              ),
+            ]),
+            // ── Custom date pickers ─────────────────────────────────
+            if (_datePreset == 'Custom') ...[
+              const SizedBox(height: 8),
+              Row(children: [
+                Expanded(
+                  child: InkWell(
+                    onTap: () => _pickCustomDate(true),
+                    borderRadius: BorderRadius.circular(8),
+                    child: InputDecorator(
+                      decoration: InputDecoration(
+                        labelText: 'From',
+                        isDense: true,
+                        contentPadding:
+                            const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        suffixIcon: const Icon(Icons.calendar_today, size: 16),
+                      ),
+                      child: Text(
+                        _customStart != null
+                            ? dateFmt.format(_customStart!)
+                            : 'Select date',
+                        style: TextStyle(
+                          color: _customStart != null ? null : Colors.grey.shade600,
+                        ),
                       ),
                     ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: InkWell(
+                    onTap: () => _pickCustomDate(false),
+                    borderRadius: BorderRadius.circular(8),
+                    child: InputDecorator(
+                      decoration: InputDecoration(
+                        labelText: 'To',
+                        isDense: true,
+                        contentPadding:
+                            const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        suffixIcon: const Icon(Icons.calendar_today, size: 16),
+                      ),
+                      child: Text(
+                        _customEnd != null
+                            ? dateFmt.format(_customEnd!)
+                            : 'Select date',
+                        style: TextStyle(
+                          color: _customEnd != null ? null : Colors.grey.shade600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ]),
+            ],
+            // ── Clear filters ───────────────────────────────────────
+            if (_hasActiveFilter)
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: () => setState(() {
+                    _filterProductName = null;
+                    _datePreset = 'All';
+                    _customStart = null;
+                    _customEnd = null;
+                  }),
+                  icon: const Icon(Icons.clear, size: 14),
+                  label: const Text('Clear filters', style: TextStyle(fontSize: 12)),
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.grey.shade600,
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ),
+              ),
+            const SizedBox(height: 8),
+            // ── Records table ───────────────────────────────────────
+            if (allRecords.isEmpty)
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(children: [
+                    Icon(Icons.info_outline, color: Colors.grey.shade400),
+                    const SizedBox(width: 8),
+                    const Text('No production runs yet.',
+                        style: TextStyle(color: Colors.grey)),
                   ]),
                 ),
-              );
-            }),
-          ]),
+              )
+            else if (filtered.isEmpty)
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(children: [
+                    Icon(Icons.filter_list_off, color: Colors.grey.shade400),
+                    const SizedBox(width: 8),
+                    const Text('No records match the selected filters.',
+                        style: TextStyle(color: Colors.grey)),
+                  ]),
+                ),
+              )
+            else
+              Card(
+                child: Column(children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade100,
+                      borderRadius:
+                          const BorderRadius.vertical(top: Radius.circular(12)),
+                    ),
+                    child: const Row(children: [
+                      Expanded(
+                          flex: 4,
+                          child: Text('Product',
+                              style: TextStyle(
+                                  fontWeight: FontWeight.bold, fontSize: 11))),
+                      Expanded(
+                          flex: 2,
+                          child: Text('Qty',
+                              textAlign: TextAlign.right,
+                              style: TextStyle(
+                                  fontWeight: FontWeight.bold, fontSize: 11))),
+                      Expanded(
+                          flex: 3,
+                          child: Text('Cost (₹)',
+                              textAlign: TextAlign.right,
+                              style: TextStyle(
+                                  fontWeight: FontWeight.bold, fontSize: 11))),
+                      Expanded(
+                          flex: 3,
+                          child: Text('Value (₹)',
+                              textAlign: TextAlign.right,
+                              style: TextStyle(
+                                  fontWeight: FontWeight.bold, fontSize: 11))),
+                      SizedBox(width: 32),
+                    ]),
+                  ),
+                  ...filtered.map((r) {
+                    final id = r['id'] as String? ?? '';
+                    final name = r['productName'] as String? ?? '';
+                    final qty = (r['qty'] as num?)?.toDouble() ?? 0;
+                    final totalCost = (r['totalCost'] as num?)?.toDouble() ?? 0;
+                    final totalValue = (r['totalValue'] as num?)?.toDouble() ?? 0;
+                    final date = r['date'] != null
+                        ? DateTime.tryParse(r['date'] as String)
+                        : null;
+                    return InkWell(
+                      onTap: () => Navigator.push(ctx,
+                          MaterialPageRoute(
+                              builder: (_) => ManufactureDetailScreen(record: r))),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 10),
+                        decoration: BoxDecoration(
+                            border: Border(
+                                bottom: BorderSide(color: Colors.grey.shade100))),
+                        child: Row(children: [
+                          Expanded(
+                              flex: 4,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(name,
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.w500,
+                                          fontSize: 12)),
+                                  if (date != null)
+                                    Text(df.format(date),
+                                        style: TextStyle(
+                                            color: Colors.grey.shade500,
+                                            fontSize: 10)),
+                                ],
+                              )),
+                          Expanded(
+                              flex: 2,
+                              child: Text(
+                                qty.toStringAsFixed(
+                                    qty.truncateToDouble() == qty ? 0 : 2),
+                                textAlign: TextAlign.right,
+                                style: const TextStyle(fontSize: 12),
+                              )),
+                          Expanded(
+                              flex: 3,
+                              child: Text(
+                                cf.format(totalCost),
+                                textAlign: TextAlign.right,
+                                style: const TextStyle(
+                                    fontSize: 12, color: AppTheme.payable),
+                              )),
+                          Expanded(
+                              flex: 3,
+                              child: Text(
+                                cf.format(totalValue),
+                                textAlign: TextAlign.right,
+                                style: const TextStyle(
+                                    fontSize: 12,
+                                    color: AppTheme.receivable,
+                                    fontWeight: FontWeight.w500),
+                              )),
+                          SizedBox(
+                            width: 32,
+                            child: PopupMenuButton<String>(
+                              icon: Icon(Icons.more_vert,
+                                  size: 18, color: Colors.grey.shade500),
+                              padding: EdgeInsets.zero,
+                              itemBuilder: (_) => [
+                                const PopupMenuItem(
+                                  value: 'edit_date',
+                                  child: Row(children: [
+                                    Icon(Icons.edit_calendar_outlined, size: 16),
+                                    SizedBox(width: 8),
+                                    Text('Edit Date'),
+                                  ]),
+                                ),
+                                const PopupMenuItem(
+                                  value: 'edit_qty',
+                                  child: Row(children: [
+                                    Icon(Icons.edit_outlined, size: 16),
+                                    SizedBox(width: 8),
+                                    Text('Edit Qty'),
+                                  ]),
+                                ),
+                                const PopupMenuItem(
+                                  value: 'delete',
+                                  child: Row(children: [
+                                    Icon(Icons.delete_outline,
+                                        size: 16, color: Colors.red),
+                                    SizedBox(width: 8),
+                                    Text('Delete',
+                                        style: TextStyle(color: Colors.red)),
+                                  ]),
+                                ),
+                              ],
+                              onSelected: (value) {
+                                if (value == 'edit_date') {
+                                  _editDate(ctx, id, date ?? DateTime.now());
+                                } else if (value == 'edit_qty') {
+                                  _editQty(ctx, r);
+                                } else if (value == 'delete') {
+                                  _confirmDelete(ctx, id, name, qty);
+                                }
+                              },
+                            ),
+                          ),
+                        ]),
+                      ),
+                    );
+                  }),
+                ]),
+              ),
+          ],
         );
       },
     );

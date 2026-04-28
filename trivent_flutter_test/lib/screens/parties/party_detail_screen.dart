@@ -6,8 +6,16 @@ import '../../services/firestore_service.dart';
 import '../../theme.dart';
 import '../sales/add_sale_screen.dart';
 import '../sales/add_payment_in_screen.dart';
+import '../sales/sale_detail_screen.dart';
+import '../sales/payment_in_detail_screen.dart';
 import '../purchases/add_purchase_screen.dart';
 import '../purchases/add_payment_out_screen.dart';
+import '../purchases/purchase_detail_screen.dart';
+import '../purchases/payment_out_detail_screen.dart';
+import '../../models/sale_model.dart';
+import '../../models/purchase_model.dart';
+import '../../models/payment_in_model.dart';
+import '../../models/payment_out_model.dart';
 import 'add_party_screen.dart';
 
 class PartyDetailScreen extends StatefulWidget {
@@ -270,38 +278,43 @@ class _PartyDetailScreenState extends State<PartyDetailScreen> {
                       'PaymentOut' => 'Paid Out',
                       _            => 'Paid',
                     };
-                    return Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                      decoration: BoxDecoration(
-                          border: Border(bottom: BorderSide(color: Colors.grey.shade100))),
-                      child: Row(children: [
-                        CircleAvatar(
-                          radius: 14,
-                          backgroundColor: color.withValues(alpha: 0.1),
-                          child: Icon(icon, size: 14, color: color),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(tx['refNo'] as String,
-                                style: const TextStyle(fontWeight: FontWeight.w500)),
-                            Text(_df.format(tx['date'] as DateTime),
-                                style: TextStyle(color: Colors.grey.shade500, fontSize: 11)),
-                          ],
-                        )),
-                        Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                          Text(_cf.format(tx['amount']),
-                              style: const TextStyle(fontWeight: FontWeight.bold)),
-                          if ((tx['balance'] as double) > 0.01)
-                            Text('Due: ${_cf.format(tx['balance'])}',
-                                style: const TextStyle(
-                                    color: AppTheme.payable, fontSize: 11))
-                          else
-                            Text(statusLabel,
-                                style: TextStyle(color: color, fontSize: 11)),
+                    return InkWell(
+                      onTap: () => _openTransaction(tx).then((_) => _refresh()),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        decoration: BoxDecoration(
+                            border: Border(bottom: BorderSide(color: Colors.grey.shade100))),
+                        child: Row(children: [
+                          CircleAvatar(
+                            radius: 14,
+                            backgroundColor: color.withValues(alpha: 0.1),
+                            child: Icon(icon, size: 14, color: color),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(tx['refNo'] as String,
+                                  style: const TextStyle(fontWeight: FontWeight.w500)),
+                              Text(_df.format(tx['date'] as DateTime),
+                                  style: TextStyle(color: Colors.grey.shade500, fontSize: 11)),
+                            ],
+                          )),
+                          Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                            Text(_cf.format(tx['amount']),
+                                style: const TextStyle(fontWeight: FontWeight.bold)),
+                            if ((tx['balance'] as double) > 0.01)
+                              Text('Due: ${_cf.format(tx['balance'])}',
+                                  style: const TextStyle(
+                                      color: AppTheme.payable, fontSize: 11))
+                            else
+                              Text(statusLabel,
+                                  style: TextStyle(color: color, fontSize: 11)),
+                          ]),
+                          const SizedBox(width: 4),
+                          Icon(Icons.chevron_right, size: 16, color: Colors.grey.shade400),
                         ]),
-                      ]),
+                      ),
                     );
                   }).toList(),
                 ),
@@ -311,6 +324,18 @@ class _PartyDetailScreenState extends State<PartyDetailScreen> {
         ]),
       ),
     );
+  }
+
+  Future<void> _openTransaction(Map<String, dynamic> tx) {
+    final model = tx['model'];
+    final Widget screen = switch (tx['type'] as String) {
+      'Sale'       => SaleDetailScreen(sale: model as SaleModel),
+      'Purchase'   => PurchaseDetailScreen(purchase: model as PurchaseModel),
+      'PaymentIn'  => PaymentInDetailScreen(payment: model as PaymentInModel),
+      'PaymentOut' => PaymentOutDetailScreen(payment: model as PaymentOutModel),
+      _            => const SizedBox.shrink(),
+    };
+    return Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
   }
 
   Future<void> _sendReminder(BuildContext context) async {

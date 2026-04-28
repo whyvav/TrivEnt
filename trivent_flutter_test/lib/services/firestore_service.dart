@@ -233,6 +233,7 @@ class FirestoreService {
         'type': 'Sale', 'id': s.id, 'refNo': s.invoiceNo,
         'date': s.date, 'amount': s.totalAmount,
         'paid': s.amountPaid, 'balance': s.balanceDue,
+        'model': s,
       });
     }
     for (final d in results[1].docs) {
@@ -241,6 +242,7 @@ class FirestoreService {
         'type': 'Purchase', 'id': p.id, 'refNo': p.billNo,
         'date': p.date, 'amount': p.totalAmount,
         'paid': p.amountPaid, 'balance': p.balanceDue,
+        'model': p,
       });
     }
     for (final d in results[2].docs) {
@@ -249,6 +251,7 @@ class FirestoreService {
         'type': 'PaymentIn', 'id': pi.id, 'refNo': pi.receiptNo,
         'date': pi.date, 'amount': pi.amount,
         'paid': pi.amount, 'balance': 0.0,
+        'model': pi,
       });
     }
     for (final d in results[3].docs) {
@@ -257,6 +260,7 @@ class FirestoreService {
         'type': 'PaymentOut', 'id': po.id, 'refNo': po.paymentNo,
         'date': po.date, 'amount': po.amount,
         'paid': po.amount, 'balance': 0.0,
+        'model': po,
       });
     }
     all.sort((a, b) => (b['date'] as DateTime).compareTo(a['date'] as DateTime));
@@ -366,6 +370,18 @@ class FirestoreService {
     final doc = await _productions.doc(id).get();
     if (!doc.exists) return null;
     return {'id': doc.id, ...doc.data() as Map<String, dynamic>};
+  }
+
+  Future<SaleModel?> getSaleRecord(String id) async {
+    final doc = await _sales.doc(id).get();
+    if (!doc.exists) return null;
+    return SaleModel.fromMap({'id': doc.id, ...doc.data() as Map<String, dynamic>});
+  }
+
+  Future<PurchaseModel?> getPurchaseRecord(String id) async {
+    final doc = await _purchases.doc(id).get();
+    if (!doc.exists) return null;
+    return PurchaseModel.fromMap({'id': doc.id, ...doc.data() as Map<String, dynamic>});
   }
 
   static String _bomCostToExpenseCategory(String type) {
@@ -810,15 +826,40 @@ Future<void> addSale(SaleModel sale) async {
     };
   }
 
-  /// All transactions combined (sales + purchases + expenses + pay-ins + pay-outs), newest first
+  /// All transactions combined (sales + purchases + pay-ins + pay-outs), newest first.
+  /// PI/PO entries include a `partyBalance` field with the party's outstanding balance
+  /// computed from the fetched records.
   Future<List<Map<String, dynamic>>> getAllTransactions({int limit = 50}) async {
     final results = await Future.wait([
       _sales.orderBy('date', descending: true).limit(limit).get(),
       _purchases.orderBy('date', descending: true).limit(limit).get(),
-      _expenses.orderBy('date', descending: true).limit(limit).get(),
       _paymentIns.orderBy('date', descending: true).limit(limit).get(),
       _paymentOuts.orderBy('date', descending: true).limit(limit).get(),
     ]);
+
+    // Build per-party balance maps from fetched records
+    final Map<String, double> custReceivable = {};
+    final Map<String, double> custReceived = {};
+    final Map<String, double> vendPayable = {};
+    final Map<String, double> vendPaid = {};
+    for (final d in results[0].docs) {
+      final s = SaleModel.fromMap(d.data() as Map<String, dynamic>);
+      custReceivable[s.partyId] = (custReceivable[s.partyId] ?? 0) + s.totalAmount;
+      custReceived[s.partyId] = (custReceived[s.partyId] ?? 0) + s.amountPaid;
+    }
+    for (final d in results[1].docs) {
+      final p = PurchaseModel.fromMap(d.data() as Map<String, dynamic>);
+      vendPayable[p.partyId] = (vendPayable[p.partyId] ?? 0) + p.totalAmount;
+      vendPaid[p.partyId] = (vendPaid[p.partyId] ?? 0) + p.amountPaid;
+    }
+    for (final d in results[2].docs) {
+      final pi = PaymentInModel.fromMap(d.data() as Map<String, dynamic>);
+      custReceived[pi.partyId] = (custReceived[pi.partyId] ?? 0) + pi.amount;
+    }
+    for (final d in results[3].docs) {
+      final po = PaymentOutModel.fromMap(d.data() as Map<String, dynamic>);
+      vendPaid[po.partyId] = (vendPaid[po.partyId] ?? 0) + po.amount;
+    }
 
     final List<Map<String, dynamic>> all = [];
     for (final d in results[0].docs) {
@@ -834,21 +875,20 @@ Future<void> addSale(SaleModel sale) async {
         'model': p});
     }
     for (final d in results[2].docs) {
-      final e = ExpenseModel.fromMap(d.data() as Map<String, dynamic>);
-      all.add({'type': 'Expense', 'id': e.id, 'ref': e.category, 'party': e.partyName ?? '-',
-        'amount': e.amount, 'paid': e.amount, 'date': e.date, 'isPaid': true});
-    }
-    for (final d in results[3].docs) {
       final pi = PaymentInModel.fromMap(d.data() as Map<String, dynamic>);
+      final custBal = ((custReceivable[pi.partyId] ?? 0) - (custReceived[pi.partyId] ?? 0))
+          .clamp(0.0, double.infinity);
       all.add({'type': 'PaymentIn', 'id': pi.id, 'ref': pi.receiptNo, 'party': pi.partyName,
         'amount': pi.amount, 'paid': pi.amount, 'date': pi.date, 'isPaid': true,
-        'model': pi});
+        'partyBalance': custBal, 'model': pi});
     }
-    for (final d in results[4].docs) {
+    for (final d in results[3].docs) {
       final po = PaymentOutModel.fromMap(d.data() as Map<String, dynamic>);
+      final vendBal = ((vendPayable[po.partyId] ?? 0) - (vendPaid[po.partyId] ?? 0))
+          .clamp(0.0, double.infinity);
       all.add({'type': 'PaymentOut', 'id': po.id, 'ref': po.paymentNo, 'party': po.partyName,
         'amount': po.amount, 'paid': po.amount, 'date': po.date, 'isPaid': true,
-        'model': po});
+        'partyBalance': vendBal, 'model': po});
     }
     all.sort((a, b) => (b['date'] as DateTime).compareTo(a['date'] as DateTime));
     return all.take(limit).toList();

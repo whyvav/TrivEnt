@@ -12,10 +12,10 @@ import '../../models/payment_out_model.dart';
 import 'package:trivent_flutter_test/screens/inventory/add_item_screen.dart';
 import 'package:trivent_flutter_test/screens/sales/add_sale_screen.dart';
 import 'package:trivent_flutter_test/screens/sales/sale_detail_screen.dart';
-import 'package:trivent_flutter_test/screens/sales/add_payment_in_screen.dart';
+import 'package:trivent_flutter_test/screens/sales/payment_in_detail_screen.dart';
 import 'package:trivent_flutter_test/screens/purchases/add_purchase_screen.dart';
 import 'package:trivent_flutter_test/screens/purchases/purchase_detail_screen.dart';
-import 'package:trivent_flutter_test/screens/purchases/add_payment_out_screen.dart';
+import 'package:trivent_flutter_test/screens/purchases/payment_out_detail_screen.dart';
 import 'package:trivent_flutter_test/screens/manufacturing/manufacture_screen.dart';
 import 'package:trivent_flutter_test/screens/parties/add_party_screen.dart';
 
@@ -269,10 +269,10 @@ class DashboardScreen extends StatelessWidget {
                                     builder: (_) => PurchaseDetailScreen(purchase: model)));
                               } else if (model is PaymentInModel) {
                                 Navigator.push(ctx, MaterialPageRoute(
-                                    builder: (_) => AddPaymentInScreen(existing: model)));
+                                    builder: (_) => PaymentInDetailScreen(payment: model)));
                               } else if (model is PaymentOutModel) {
                                 Navigator.push(ctx, MaterialPageRoute(
-                                    builder: (_) => AddPaymentOutScreen(existing: model)));
+                                    builder: (_) => PaymentOutDetailScreen(payment: model)));
                               }
                             },
                             child: Container(
@@ -295,16 +295,37 @@ class DashboardScreen extends StatelessWidget {
                                   Text(tx['party'] as String,
                                       style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
                                       overflow: TextOverflow.ellipsis),
-                                  Text(tx['ref'] as String,
-                                      style: TextStyle(color: Colors.grey.shade500, fontSize: 11)),
+                                  Text(
+                                    '${tx['ref']} · ${DateFormat('dd MMM').format(tx['date'] as DateTime)}',
+                                    style: TextStyle(color: Colors.grey.shade500, fontSize: 11),
+                                  ),
                                 ])),
-                                Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                                  Text(NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0)
-                                      .format(tx['amount']),
-                                      style: TextStyle(fontWeight: FontWeight.bold, color: typeColor)),
-                                  Text(DateFormat('dd MMM').format(tx['date'] as DateTime),
-                                      style: TextStyle(color: Colors.grey.shade500, fontSize: 11)),
-                                ]),
+                                () {
+                                  final cf0 = NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0);
+                                  final amt = tx['amount'] as double;
+                                  if (type == 'Sale' || type == 'Purchase') {
+                                    final isPaid = tx['isPaid'] as bool;
+                                    final due = amt - (tx['paid'] as double);
+                                    return Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                                      Text(cf0.format(amt),
+                                          style: TextStyle(fontWeight: FontWeight.bold, color: typeColor)),
+                                      Text('Due: ${cf0.format(due)}',
+                                          style: TextStyle(
+                                              color: isPaid ? AppTheme.receivable : AppTheme.payable,
+                                              fontSize: 11)),
+                                    ]);
+                                  } else {
+                                    final bal = (tx['partyBalance'] as double?) ?? 0.0;
+                                    return Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                                      Text(cf0.format(amt),
+                                          style: TextStyle(fontWeight: FontWeight.bold, color: typeColor)),
+                                      Text('Bal: ${cf0.format(bal)}',
+                                          style: TextStyle(
+                                              color: bal > 0.01 ? AppTheme.payable : AppTheme.receivable,
+                                              fontSize: 11)),
+                                    ]);
+                                  }
+                                }(),
                               ]),
                             ),
                           );
