@@ -3,6 +3,8 @@ import 'package:uuid/uuid.dart';
 import '../../models/bom_model.dart';
 import '../../models/item_model.dart';
 import '../../services/firestore_service.dart';
+import '../../theme.dart';
+import '../inventory/add_item_screen.dart';
 
 class AddBomScreen extends StatefulWidget {
   final BomModel? existing;
@@ -70,12 +72,42 @@ class _AddBomScreenState extends State<AddBomScreen> {
                     });
                   }
                 }
-                return DropdownButtonFormField<ItemModel>(
-                  initialValue: _selectedProduct,
-                  hint: const Text('Select product'),
-                  decoration: const InputDecoration(labelText: 'Product to manufacture'),
-                  items: products.map((p) => DropdownMenuItem(value: p, child: Text(p.name))).toList(),
-                  onChanged: (v) => setState(() => _selectedProduct = v),
+                return StreamBuilder<List<BomModel>>(
+                  stream: svc.streamBoms(),
+                  builder: (ctx2, bomSnap) {
+                    final bomsProductIds = (bomSnap.data ?? [])
+                        .map((b) => b.productId)
+                        .toSet();
+                    final filtered = products
+                        .where((p) =>
+                            !bomsProductIds.contains(p.id) ||
+                            p.id == _selectedProduct?.id)
+                        .toList()
+                      ..sort((a, b) =>
+                          a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+                    return InkWell(
+                      onTap: () => _showProductPicker(context, filtered),
+                      borderRadius: BorderRadius.circular(8),
+                      child: InputDecorator(
+                        decoration: InputDecoration(
+                          labelText: 'Product to manufacture',
+                          suffixIcon: const Icon(Icons.arrow_drop_down),
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8)),
+                        ),
+                        child: Text(
+                          _selectedProduct != null
+                              ? _selectedProduct!.name
+                              : 'Select product',
+                          style: TextStyle(
+                            color: _selectedProduct != null
+                                ? Theme.of(context).textTheme.bodyLarge?.color
+                                : Colors.grey.shade600,
+                          ),
+                        ),
+                      ),
+                    );
+                  },
                 );
               },
             ),
@@ -212,6 +244,74 @@ class _AddBomScreenState extends State<AddBomScreen> {
     );
   }
 
+  void _showProductPicker(BuildContext context, List<ItemModel> products) {
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        title: const Text('Select Product'),
+        contentPadding: EdgeInsets.zero,
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              ListTile(
+                leading: const CircleAvatar(
+                  backgroundColor: Color(0xFFE8F5E9),
+                  child: Icon(Icons.add, color: AppTheme.primary, size: 20),
+                ),
+                title: const Text('New Product',
+                    style: TextStyle(
+                        color: AppTheme.primary, fontWeight: FontWeight.w600)),
+                subtitle: const Text('Add a new product to inventory'),
+                onTap: () async {
+                  Navigator.pop(dialogCtx);
+                  if (!context.mounted) return;
+                  final result = await Navigator.push(context,
+                      MaterialPageRoute(
+                          builder: (_) =>
+                              const AddItemScreen(defaultCategory: 'product')));
+                  if (result is ItemModel && mounted) {
+                    setState(() => _selectedProduct = result);
+                  }
+                },
+              ),
+              if (products.isNotEmpty) const Divider(height: 1),
+              ...products.map((p) => ListTile(
+                    title: Text(p.name),
+                    subtitle: Text(
+                        'Stock: ${p.stockQty} ${p.primaryUnit}'),
+                    selected: _selectedProduct?.id == p.id,
+                    selectedTileColor:
+                        AppTheme.primary.withValues(alpha: 0.06),
+                    onTap: () {
+                      Navigator.pop(dialogCtx);
+                      if (_selectedProduct?.id != p.id) {
+                        setState(() => _selectedProduct = p);
+                      }
+                    },
+                  )),
+              if (products.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.all(24),
+                  child: Text(
+                    'All products already have a BoM.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(dialogCtx),
+              child: const Text('Cancel')),
+        ],
+      ),
+    );
+  }
+
   Future<void> _save() async {
     if (_selectedProduct == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -251,8 +351,10 @@ class _AddBomScreenState extends State<AddBomScreen> {
       }
     } catch (e) {
       setState(() => _saving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
+      }
     }
   }
 }
