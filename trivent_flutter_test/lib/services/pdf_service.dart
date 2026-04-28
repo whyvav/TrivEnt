@@ -242,7 +242,6 @@ class PdfService {
   );
 
   pw.Widget _itemsTable(List<_ItemRow> rows) {
-    const headerStyle = pw.TextStyle(fontSize: 9);
     const cellStyle = pw.TextStyle(fontSize: 9);
     return pw.Table(
       border: pw.TableBorder.all(color: PdfColors.grey300, width: 0.5),

@@ -199,7 +199,7 @@ class _AddItemScreenState extends State<AddItemScreen> {
                   const SizedBox(height: 10),
                   Row(children: [
                     const Text('Tax: ', style: TextStyle(fontWeight: FontWeight.w500)),
-                    ...[ 0.0, 5.0, 12.0, 18.0, 28.0].map((t) => Padding(
+                    ..._taxOptions.map((t) => Padding(
                       padding: const EdgeInsets.only(right: 6),
                       child: ChoiceChip(
                         label: Text('$t%', style: const TextStyle(fontSize: 12)),

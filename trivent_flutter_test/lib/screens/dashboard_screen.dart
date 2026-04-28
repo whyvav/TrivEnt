@@ -9,7 +9,6 @@ import '../../models/sale_model.dart';
 import '../../models/purchase_model.dart';
 import '../../models/payment_in_model.dart';
 import '../../models/payment_out_model.dart';
-import 'package:trivent_flutter_test/screens/inventory/inventory_screen.dart';
 import 'package:trivent_flutter_test/screens/inventory/add_item_screen.dart';
 import 'package:trivent_flutter_test/screens/sales/add_sale_screen.dart';
 import 'package:trivent_flutter_test/screens/sales/sale_detail_screen.dart';
